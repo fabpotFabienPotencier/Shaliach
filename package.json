@@ -8,7 +8,10 @@
   "engines": {
     "node": ">=20.0.0"
   },
-
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev:api": "pnpm --filter @shaliach/api dev",
     "dev:web": "pnpm --filter @shaliach/web dev",

@@ -12,8 +12,8 @@
   "dependencies": {
     "groq-sdk": "^0.8.0",
     "zod": "^3.23.0",
-    "@shaliach/shared": "workspace:*",
-    "@shaliach/config": "workspace:*"
+    "@shaliach/shared": "*",
+    "@shaliach/config": "*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
