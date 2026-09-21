@@ -1,0 +1,22 @@
+{
+  "name": "@shaliach/ai",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "test": "jest"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.8.0",
+    "zod": "^3.23.0",
+    "@shaliach/shared": "workspace:*",
+    "@shaliach/config": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "rimraf": "^5.0.0"
+  }
+}

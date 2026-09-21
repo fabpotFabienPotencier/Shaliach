@@ -1,0 +1,1925 @@
+# MASTER BUILD INSTRUCTION — SHALIACH AI
+
+You are the principal software architect and senior full-stack engineer responsible for building a production-quality application named **Shaliach AI**.
+
+Shaliach AI is a private AI-powered outreach and sales management platform owned by:
+
+**Owner:** Joshua Caleb
+**Company:** FixHubTech
+**Website:** fixhubtech.com
+
+Your responsibility is to architect and CREATE the complete source code for the application inside the provided project workspace.
+
+---
+
+# 🚨 ABSOLUTE WORKSTATION SAFETY RULE
+
+THIS REQUIREMENT OVERRIDES EVERY OTHER DEVELOPMENT INSTRUCTION.
+
+## YOU MUST NOT RUN INSTALLATION COMMANDS OR SYSTEM COMMANDS ON THIS COMPUTER.
+
+You are working inside Joshua Caleb's personal laptop.
+
+You have permission to CREATE, READ, EDIT, RENAME and ORGANIZE files inside the assigned Shaliach project workspace.
+
+You DO NOT have permission to execute commands that modify, install, configure, start, stop, migrate, deploy, delete or otherwise alter the host computer.
+
+### NEVER automatically execute:
+
+```text
+npm install
+npm i
+npm uninstall
+npx
+pnpm install
+pnpm add
+pnpm remove
+yarn
+yarn install
+bun install
+
+apt
+apt-get
+yum
+dnf
+pacman
+brew
+choco
+winget
+
+pip install
+pip3 install
+poetry install
+
+docker
+docker compose
+docker-compose
+
+prisma migrate
+prisma db push
+prisma generate
+prisma seed
+
+psql
+redis-cli
+
+git init
+git add
+git commit
+git push
+git pull
+git reset
+git clean
+
+curl | bash
+wget | bash
+PowerShell installation scripts
+
+systemctl
+service
+pm2
+
+ssh
+scp
+rsync
+
+vercel deploy
+aws
+cloudflare
+wrangler
+
+database migrations
+database destructive commands
+deployment commands
+server startup commands
+build commands
+test commands
+package-manager commands
+shell scripts
+PowerShell scripts
+Command Prompt commands
+terminal commands of any kind
+```
+
+Do NOT silently run commands because they appear harmless.
+
+Do NOT install dependencies.
+
+Do NOT start development servers.
+
+Do NOT build the application.
+
+Do NOT run migrations.
+
+Do NOT initialize Docker.
+
+Do NOT modify the Windows registry.
+
+Do NOT modify global PATH variables.
+
+Do NOT modify unrelated files outside the assigned project directory.
+
+Do NOT delete user files.
+
+Do NOT execute generated scripts.
+
+Do NOT deploy anything.
+
+Do NOT connect to production infrastructure.
+
+Do NOT manipulate Git repositories automatically.
+
+## Instead:
+
+Create all necessary application source files.
+
+Create all necessary configuration files.
+
+Create:
+
+```text
+SETUP.md
+DEPLOYMENT.md
+MANUAL_COMMANDS.md
+ENVIRONMENT.md
+ARCHITECTURE.md
+SECURITY.md
+```
+
+If an installation, migration, initialization, testing, Docker, Git or deployment command is required, WRITE the command into `MANUAL_COMMANDS.md`.
+
+Joshua will manually review and execute commands himself later.
+
+You may explain why each command is required.
+
+Creating code is authorized.
+
+Executing that code is NOT authorized.
+
+If execution becomes necessary to verify something, do not execute it.
+
+Document what Joshua should manually verify.
+
+---
+
+# 1. PRODUCT
+
+Build:
+
+# Shaliach AI
+
+Subtitle:
+
+**FixHubTech Outreach & Sales Intelligence**
+
+Shaliach AI converts business lead CSV files into organized, personalized email outreach campaigns and manages prospects through the FixHubTech sales pipeline.
+
+Core workflow:
+
+```text
+CSV
+→ Import
+→ Normalize
+→ Validate
+→ Deduplicate
+→ Select Leads
+→ Create Campaign
+→ Personalize with Groq
+→ Review
+→ Approve
+→ Queue
+→ Send through Resend
+→ Track Events
+→ Receive Replies
+→ AI Draft Reply
+→ CRM
+→ Won/Lost
+→ Revenue
+```
+
+Lead discovery itself is NOT part of V1.
+
+Shaliach starts when Joshua uploads a CSV.
+
+---
+
+# 2. FINAL TECHNOLOGY STACK
+
+Use exactly:
+
+## Frontend
+
+```text
+Next.js
+TypeScript
+Tailwind CSS
+shadcn/ui
+TanStack Query
+```
+
+Use the Next.js App Router.
+
+## Backend
+
+```text
+NestJS
+Fastify Adapter
+TypeScript
+```
+
+Do NOT use Express unless absolutely required by an incompatible dependency.
+
+## Database
+
+```text
+PostgreSQL
+Prisma ORM
+```
+
+## Queue
+
+```text
+Redis
+BullMQ
+```
+
+## AI
+
+```text
+Groq API
+Official Groq TypeScript SDK
+```
+
+## Email
+
+```text
+Resend
+```
+
+## Object Storage
+
+```text
+Cloudflare R2
+```
+
+## Monitoring
+
+```text
+Sentry
+Structured JSON logging
+Health endpoints
+Worker health tracking
+```
+
+## Production Infrastructure
+
+```text
+Frontend → Vercel
+
+Backend → Ubuntu AWS server
+Workers → Ubuntu AWS server
+Redis → Ubuntu AWS server initially
+PostgreSQL → Ubuntu AWS server initially
+Nginx → Ubuntu AWS server
+Docker Compose → Ubuntu AWS server
+
+Groq → external
+Resend → external
+Cloudflare R2 → external
+Sentry → external
+```
+
+Do not deploy this architecture.
+
+Only create everything required to deploy it later.
+
+---
+
+# 3. PRODUCTION DOMAIN ARCHITECTURE
+
+Prepare configuration around:
+
+```text
+fixhubtech.com
+```
+
+Application:
+
+```text
+app.fixhubtech.com
+```
+
+Backend:
+
+```text
+api.fixhubtech.com
+```
+
+Sending domain:
+
+```text
+mail.fixhubtech.com
+```
+
+Receiving domain:
+
+```text
+reply.fixhubtech.com
+```
+
+Expected structure:
+
+```text
+app.fixhubtech.com
+        │
+        ▼
+      Vercel
+        │
+        ▼
+     Next.js
+        │
+ HTTPS REST API
+        │
+        ▼
+api.fixhubtech.com
+        │
+        ▼
+      Nginx
+        │
+        ▼
+NestJS + Fastify
+        │
+ ┌──────┼────────────┐
+ ▼      ▼            ▼
+Postgres Redis       R2
+          │
+          ▼
+        BullMQ
+      ┌───┼─────┐
+      ▼   ▼     ▼
+    Import AI  Email
+    Worker Worker Worker
+            │      │
+            ▼      ▼
+           Groq  Resend
+```
+
+---
+
+# 4. REPOSITORY ARCHITECTURE
+
+Create a pnpm monorepo structured approximately as:
+
+```text
+shaliach/
+│
+├── apps/
+│   ├── web/
+│   ├── api/
+│   └── worker/
+│
+├── packages/
+│   ├── ai/
+│   ├── database/
+│   ├── email/
+│   ├── shared/
+│   ├── config/
+│   └── ui/
+│
+├── infrastructure/
+│   ├── docker/
+│   ├── nginx/
+│   └── deployment/
+│
+├── docs/
+│
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── pnpm-workspace.yaml
+├── package.json
+├── README.md
+├── SETUP.md
+├── DEPLOYMENT.md
+├── MANUAL_COMMANDS.md
+├── ARCHITECTURE.md
+├── SECURITY.md
+└── ENVIRONMENT.md
+```
+
+Create all necessary package manifests.
+
+Do NOT install them.
+
+---
+
+# 5. UI DESIGN
+
+The interface must look like a serious premium SaaS product.
+
+Avoid generic AI-generated dashboard aesthetics.
+
+Use:
+
+```text
+Professional
+Minimal
+Fast
+Dense where useful
+Excellent information hierarchy
+Responsive
+Desktop-first administrative experience
+Mobile-compatible
+Accessible
+Clean typography
+Subtle shadows
+Consistent spacing
+Strong tables
+Useful empty states
+Useful loading states
+Useful errors
+```
+
+Create a collapsible sidebar containing:
+
+```text
+Dashboard
+Leads
+Imports
+Campaigns
+Approval Queue
+Inbox
+CRM
+Analytics
+Suppression
+Activity
+Settings
+```
+
+Top navigation:
+
+```text
+Search
+Queue health
+Notifications
+Joshua Caleb account menu
+```
+
+---
+
+# 6. AUTHENTICATION
+
+V1 is SINGLE USER.
+
+The authorized identity is Joshua Caleb.
+
+Build:
+
+```text
+Login
+Logout
+Secure password hashing
+HTTP-only authentication cookie
+Secure cookie options
+CSRF protection
+Session expiration
+Login rate limiting
+Audit logging
+Protected routes
+```
+
+Do not expose JWT/session values to browser JavaScript unnecessarily.
+
+---
+
+# 7. DASHBOARD
+
+Display:
+
+```text
+Total leads
+Valid leads
+Risky leads
+Invalid leads
+Suppressed leads
+
+Active campaigns
+Draft messages
+Approved messages
+Queued messages
+Delivered messages
+
+Replies
+Interested prospects
+Proposals
+Won projects
+Revenue
+
+Groq queue health
+Email queue health
+Import queue health
+
+Recent activity
+```
+
+Include trend widgets where useful.
+
+Do not calculate expensive analytics synchronously during every dashboard request.
+
+---
+
+# 8. CSV IMPORT ENGINE
+
+Supported fields:
+
+```text
+business_name
+email
+first_name
+website
+category
+city
+state
+country
+notes
+source
+```
+
+Email is the only mandatory value.
+
+Upload workflow:
+
+```text
+Upload
+→ Store original in R2
+→ Create ImportJob
+→ Background queue
+→ Stream CSV
+→ Map columns
+→ Normalize
+→ Validate
+→ Deduplicate
+→ Check suppression
+→ Bulk insert
+→ Produce report
+```
+
+The system MUST stream files.
+
+Never load a multi-million-row CSV completely into RAM.
+
+Use configurable chunks roughly:
+
+```text
+500–2,000 records
+```
+
+Support:
+
+```text
+CSV column mapping
+Progress percentage
+Success count
+Duplicate count
+Invalid count
+Risky count
+Suppressed count
+Failure count
+Error explanations
+Cancellation
+Retry
+Export cleaned CSV
+Export rejected rows
+```
+
+Protect against CSV formula injection during export.
+
+---
+
+# 9. EMAIL VALIDATION
+
+Implement safe validation:
+
+```text
+Normalize whitespace
+Normalize domain casing
+Syntax validation
+Duplicate detection
+Domain existence
+MX lookup
+Suppression lookup
+Hard-bounce lookup
+Complaint lookup
+Disposable-domain flag
+Role-address classification
+```
+
+Statuses:
+
+```text
+VALID
+RISKY
+INVALID
+DUPLICATE
+SUPPRESSED
+UNKNOWN
+```
+
+MX existence does NOT prove the individual mailbox exists.
+
+Never misrepresent an address as guaranteed active.
+
+---
+
+# 10. LEAD MANAGEMENT
+
+Each lead should contain:
+
+```text
+id
+businessName
+email
+normalizedEmail
+firstName
+website
+category
+city
+state
+country
+notes
+source
+
+validationStatus
+crmStatus
+
+createdAt
+updatedAt
+lastContactedAt
+lastReplyAt
+
+expectedRevenue
+confirmedRevenue
+```
+
+Provide filters:
+
+```text
+Search
+Country
+State
+City
+Category
+Validation
+CRM status
+Campaign
+Import list
+Created date
+Last contacted
+```
+
+Actions:
+
+```text
+View
+Edit
+Add note
+Add to campaign
+Remove from campaign
+Suppress
+Export
+View conversations
+Change CRM stage
+Record revenue
+```
+
+Use cursor pagination rather than huge OFFSET queries.
+
+---
+
+# 11. CAMPAIGNS
+
+Campaign configuration:
+
+```text
+Name
+Description
+Lead selection
+Sender profile
+Manual/AI mode
+Daily send limit
+Scheduling configuration
+Sending window
+Follow-up configuration
+Status
+```
+
+Statuses:
+
+```text
+DRAFT
+GENERATING
+READY_FOR_REVIEW
+APPROVED
+QUEUED
+RUNNING
+PAUSED
+COMPLETED
+CANCELLED
+FAILED
+```
+
+---
+
+# 12. MANUAL EMAIL MODE
+
+Support variables:
+
+```text
+{{business_name}}
+{{first_name}}
+{{website}}
+{{category}}
+{{city}}
+{{state}}
+{{country}}
+{{notes}}
+{{sender_name}}
+{{company_name}}
+```
+
+Provide live preview and unresolved-variable warnings.
+
+---
+
+# 13. GROQ AI MODE
+
+Groq is the ONLY primary AI provider for V1.
+
+Create:
+
+```text
+GroqAiProvider
+```
+
+behind:
+
+```ts
+interface AiProvider {
+  generateOutreachEmail(
+    input: OutreachGenerationInput
+  ): Promise<OutreachGenerationResult>;
+
+  classifyReply(
+    input: ReplyClassificationInput
+  ): Promise<ReplyClassificationResult>;
+
+  draftReply(
+    input: ReplyDraftInput
+  ): Promise<ReplyDraftResult>;
+}
+```
+
+Do not directly call Groq from controllers.
+
+Use BullMQ:
+
+```text
+Campaign
+→ CampaignRecipient
+→ ai-generation queue
+→ Groq worker
+→ Validate JSON
+→ Persist draft
+→ Approval Queue
+```
+
+Environment:
+
+```text
+GROQ_API_KEY
+GROQ_MODEL
+GROQ_FALLBACK_MODEL
+GROQ_MAX_TOKENS
+GROQ_TEMPERATURE
+```
+
+Model IDs must be configurable.
+
+Do not hard-code one Groq model forever.
+
+Implement:
+
+```text
+Retries
+Exponential backoff
+Retry-After handling
+Timeout
+Fallback model
+Structured JSON validation
+Dead-letter handling
+Usage logging
+Failure reason
+```
+
+---
+
+# 14. SHALIACH AI IDENTITY
+
+External business identity:
+
+```text
+Joshua Caleb
+Founder & Web Developer
+FixHubTech
+fixhubtech.com
+```
+
+Shaliach is Joshua's digital outreach assistant.
+
+Generated communications may be written in first person using Joshua Caleb's approved business identity.
+
+However, the model MUST ONLY use supplied facts.
+
+Never fabricate:
+
+```text
+Previous conversations
+Clients
+Testimonials
+Case studies
+Website problems
+Site inspections
+Revenue claims
+Business results
+Certifications
+Awards
+Locations
+Personal relationships
+Guarantees
+Deadlines
+Prices not configured by Joshua
+```
+
+Style:
+
+```text
+Human-sounding
+Friendly
+Professional
+Confident
+Short
+Observant
+Non-aggressive
+Natural English
+```
+
+Require manual approval for:
+
+```text
+Custom pricing
+Discounts
+Contracts
+Refunds
+Legal promises
+Guarantees
+Custom deadlines
+Large commitments
+```
+
+---
+
+# 15. AI STRUCTURED OUTPUT
+
+Outreach generation must return validated structured data:
+
+```json
+{
+  "subject": "",
+  "textBody": "",
+  "htmlBody": "",
+  "confidence": 0,
+  "warnings": []
+}
+```
+
+Use runtime schema validation.
+
+Reject malformed model responses rather than blindly storing them.
+
+---
+
+# 16. APPROVAL QUEUE
+
+NO V1 EMAIL MAY BE SENT WITHOUT APPROVAL.
+
+Show:
+
+```text
+Business
+Email
+Subject
+Preview
+Validation status
+AI confidence
+Warnings
+Campaign
+```
+
+Actions:
+
+```text
+Approve
+Edit
+Regenerate
+Skip
+Suppress
+```
+
+Bulk actions:
+
+```text
+Approve selected
+Skip selected
+Regenerate selected
+```
+
+Never automatically approve an AI-generated campaign.
+
+---
+
+# 17. FIXHUBTECH EMAIL FORMAT
+
+Generate:
+
+```text
+text/plain
+text/html
+```
+
+HTML must be lightweight.
+
+Format:
+
+```text
+FIXHUBTECH
+Web Design & Digital Solutions
+─────────────────────────────
+
+Personalized message
+
+Joshua Caleb
+Founder & Web Developer
+FixHubTech
+fixhubtech.com
+
+Business postal address
+Unsubscribe
+```
+
+Avoid:
+
+```text
+Large images
+Huge banners
+Image-only emails
+Large attachments
+URL shorteners
+Fake Re:
+Fake Fwd:
+Misleading subjects
+Excessive links
+Hidden unsubscribe
+Heavy HTML
+```
+
+---
+
+# 18. RESEND EMAIL PROVIDER
+
+Create:
+
+```text
+ResendEmailProvider
+```
+
+behind:
+
+```ts
+interface EmailProvider {
+  send(message: OutgoingEmail): Promise<SendResult>;
+}
+```
+
+Configuration:
+
+```text
+Sending domain:
+mail.fixhubtech.com
+
+Receiving domain:
+reply.fixhubtech.com
+
+From:
+Joshua Caleb <joshua@mail.fixhubtech.com>
+
+Reply-To:
+joshua@reply.fixhubtech.com
+```
+
+Environment:
+
+```text
+RESEND_API_KEY
+RESEND_WEBHOOK_SECRET
+RESEND_FROM_EMAIL
+RESEND_REPLY_TO
+```
+
+---
+
+# 19. EMAIL SENDING WORKFLOW
+
+```text
+Approved
+→ email-send queue
+→ suppression check
+→ idempotency check
+→ campaign limit check
+→ provider limit check
+→ Resend
+→ Store provider ID
+→ Webhook
+→ Update state
+```
+
+Statuses:
+
+```text
+DRAFT
+APPROVED
+QUEUED
+SENT
+DELIVERED
+DEFERRED
+BOUNCED
+COMPLAINED
+FAILED
+REPLIED
+UNSUBSCRIBED
+```
+
+Never send directly from HTTP controllers.
+
+---
+
+# 20. QUEUES
+
+Create BullMQ queues:
+
+```text
+csv-import
+email-validation
+ai-generation
+email-send
+webhook-processing
+inbound-email
+analytics
+```
+
+Implement:
+
+```text
+Concurrency configuration
+Rate limiting
+Retries
+Backoff
+Progress
+Pause/resume
+Dead-letter handling
+Idempotency
+Emergency stop
+Graceful worker shutdown
+Health tracking
+```
+
+Workers should be horizontally scalable.
+
+---
+
+# 21. RESEND WEBHOOKS
+
+Provide backend endpoints for Resend events.
+
+Requirements:
+
+```text
+Verify webhook signature
+Store raw event
+Persist provider event ID
+Ignore duplicate events
+Queue processing
+Update EmailMessage
+Update CampaignRecipient
+Update analytics
+```
+
+Complaint/unsubscribe/hard-bounce events should automatically suppress the relevant address.
+
+---
+
+# 22. INBOUND EMAIL / INBOX
+
+Workflow:
+
+```text
+Email received
+→ Resend
+→ webhook
+→ webhook worker
+→ fetch full message when necessary
+→ identify conversation
+→ store InboundMessage
+→ Groq classification
+→ Groq reply draft
+→ Joshua review
+→ approved reply
+→ Resend
+```
+
+Classification values:
+
+```text
+INTERESTED
+PRICING_REQUEST
+PORTFOLIO_REQUEST
+MEETING_REQUEST
+NOT_INTERESTED
+UNSUBSCRIBE
+OUT_OF_OFFICE
+COMPLAINT
+UNKNOWN
+```
+
+Unsubscribe and complaint messages must suppress automatically.
+
+---
+
+# 23. CRM
+
+Stages:
+
+```text
+IMPORTED
+VALIDATED
+CONTACTED
+REPLIED
+INTERESTED
+MEETING_REQUESTED
+PROPOSAL_SENT
+DEPOSIT_PENDING
+WON
+LOST
+SUPPRESSED
+```
+
+Each lead should support:
+
+```text
+Notes
+Follow-up date
+Expected revenue
+Confirmed revenue
+Last activity
+Conversation history
+Campaign history
+```
+
+---
+
+# 24. FOLLOW-UP SYSTEM
+
+V1 allows at most one reviewed follow-up.
+
+Workflow:
+
+```text
+Delivered
+→ no response
+→ configured delay
+→ AI follow-up draft
+→ approval
+→ queue
+→ send
+```
+
+Never follow up when:
+
+```text
+Unsubscribed
+Complaint
+Hard bounce
+Suppressed
+Not interested
+```
+
+---
+
+# 25. ANALYTICS
+
+Track:
+
+```text
+Imports
+Valid percentage
+Invalid percentage
+Duplicate percentage
+
+AI generation success
+AI failures
+Groq usage
+
+Drafts
+Approvals
+Sends
+Deliveries
+Bounces
+Complaints
+Replies
+
+Interested replies
+Proposals
+Wins
+Losses
+Revenue
+
+Best campaigns
+Best category
+Best city
+Best state
+```
+
+Use aggregated analytics tables/jobs where appropriate.
+
+Do not repeatedly perform huge scans against raw event tables.
+
+---
+
+# 26. DATABASE
+
+Create Prisma models for:
+
+```text
+User
+SenderProfile
+LeadList
+Lead
+ImportJob
+ImportRow
+Campaign
+CampaignRecipient
+AiGeneration
+EmailMessage
+EmailEvent
+Conversation
+InboundMessage
+SuppressionEntry
+WebhookEvent
+AuditLog
+RevenueEntry
+Setting
+```
+
+Include appropriate relations.
+
+Critical uniqueness/indexing:
+
+```text
+normalized lead email
+campaignId + leadId
+provider webhook event ID
+email idempotency key
+suppression normalized email
+provider message ID
+
+validation status
+CRM status
+createdAt
+campaign recipient status
+conversation lead ID
+```
+
+Design for millions of leads.
+
+---
+
+# 27. SCALABILITY
+
+Architecture must support horizontal scaling.
+
+For large imports:
+
+```text
+Streaming
+Chunk processing
+Bulk database writes
+Backpressure
+Progress tracking
+```
+
+For database access:
+
+```text
+Correct indexes
+Cursor pagination
+Select only required fields
+Connection pooling
+Avoid N+1
+Batch writes
+Transactions where necessary
+```
+
+For workers:
+
+```text
+Independent processes
+Horizontal scaling
+Configurable concurrency
+Queue-based backpressure
+```
+
+Do not design any screen that tries to load all leads at once.
+
+---
+
+# 28. SECURITY
+
+Implement:
+
+```text
+HTTPS-ready architecture
+Secure authentication
+HTTP-only cookies
+CSRF protection
+Rate limiting
+DTO/schema validation
+Output encoding
+CORS configuration
+Secure headers
+CSP
+File-size limits
+CSV injection protection
+Webhook verification
+Secret protection
+Audit logging
+Least-privilege architecture
+```
+
+Never send secrets to the frontend.
+
+Never log:
+
+```text
+Passwords
+Groq API keys
+Resend API keys
+Database passwords
+Redis passwords
+R2 secret keys
+Session secrets
+Raw authentication tokens
+```
+
+---
+
+# 29. ENVIRONMENT CONFIGURATION
+
+Create `.env.example` containing placeholders only:
+
+```env
+NODE_ENV=
+
+APP_URL=
+API_URL=
+
+DATABASE_URL=
+REDIS_URL=
+
+SESSION_SECRET=
+ENCRYPTION_KEY=
+
+GROQ_API_KEY=
+GROQ_MODEL=
+GROQ_FALLBACK_MODEL=
+GROQ_MAX_TOKENS=500
+GROQ_TEMPERATURE=0.4
+
+RESEND_API_KEY=
+RESEND_WEBHOOK_SECRET=
+RESEND_FROM_EMAIL="Joshua Caleb <joshua@mail.fixhubtech.com>"
+RESEND_REPLY_TO="joshua@reply.fixhubtech.com"
+
+R2_ENDPOINT=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+
+SENTRY_DSN=
+```
+
+NEVER put real secrets into source files.
+
+---
+
+# 30. DOCKER / SERVER PREPARATION
+
+CREATE Docker configuration for deployment.
+
+Do NOT run Docker.
+
+Prepare containers/services for:
+
+```text
+NestJS API
+Worker
+PostgreSQL
+Redis
+```
+
+Next.js production deployment is intended for Vercel and does not need to run inside the AWS Docker stack.
+
+Create production-ready:
+
+```text
+Dockerfile(s)
+docker-compose.yml
+Nginx configuration
+health checks
+restart policies
+persistent-volume definitions
+environment mappings
+```
+
+Do not execute them.
+
+---
+
+# 31. VERCEL FRONTEND
+
+Prepare `apps/web` for deployment to Vercel.
+
+Frontend environment should reference:
+
+```text
+NEXT_PUBLIC_API_URL=https://api.fixhubtech.com
+```
+
+Never expose backend secrets through `NEXT_PUBLIC_*`.
+
+Prepare documentation explaining:
+
+```text
+Vercel project root
+Build configuration
+Environment variables
+Custom domain app.fixhubtech.com
+Backend API URL
+CORS requirements
+Cookie/domain requirements
+```
+
+Do NOT deploy.
+
+---
+
+# 32. AWS UBUNTU BACKEND
+
+Prepare documentation for eventually deploying:
+
+```text
+NestJS API
+BullMQ workers
+PostgreSQL
+Redis
+Nginx
+```
+
+to Joshua's Ubuntu AWS server.
+
+Target:
+
+```text
+https://api.fixhubtech.com
+```
+
+Nginx should reverse proxy the API container.
+
+Prepare SSL/HTTPS documentation.
+
+Do NOT SSH into any server.
+
+Do NOT connect to AWS.
+
+Do NOT deploy anything.
+
+---
+
+# 33. ERROR HANDLING
+
+Create standardized API errors.
+
+Every background job must persist meaningful failure information.
+
+UI should show useful errors instead of generic:
+
+```text
+Something went wrong
+```
+
+Where possible show:
+
+```text
+CSV parsing failed at row 483
+Groq rate limit reached
+Resend temporarily rejected request
+Webhook signature invalid
+Recipient suppressed
+Campaign paused
+Database temporarily unavailable
+```
+
+Never expose internal stack traces in production UI.
+
+---
+
+# 34. OBSERVABILITY
+
+Provide:
+
+```text
+/api/health
+/api/health/ready
+/api/health/live
+```
+
+Track:
+
+```text
+API status
+Database status
+Redis status
+Queue counts
+Failed jobs
+Worker heartbeat
+Groq failures
+Resend failures
+```
+
+Prepare Sentry integration.
+
+---
+
+# 35. TESTING
+
+CREATE tests but DO NOT RUN THEM.
+
+Include:
+
+```text
+Unit tests
+API integration tests
+Queue tests
+CSV parsing tests
+AI response validation tests
+Webhook idempotency tests
+Suppression tests
+Authentication tests
+Campaign tests
+```
+
+Create test fixtures.
+
+Document manual test commands in `MANUAL_COMMANDS.md`.
+
+---
+
+# 36. FIRST ACCEPTANCE TEST
+
+The finished application must be capable of this after Joshua manually installs/configures it:
+
+```text
+Login
+→ upload CSV
+→ map columns
+→ process 100 rows
+
+10 duplicates
+5 malformed
+5 invalid domains
+
+Expected:
+80 usable leads
+
+→ select five
+→ generate five Groq drafts
+→ edit one
+→ approve five
+→ queue five
+→ send through Resend test recipients
+→ receive webhook results
+→ show delivery states
+```
+
+---
+
+# 37. DEVELOPMENT ORDER
+
+Build in this order.
+
+## Phase A
+
+```text
+Repository
+Shared configuration
+Prisma schema
+Backend foundation
+Frontend foundation
+Authentication
+Dashboard shell
+```
+
+## Phase B
+
+```text
+CSV importer
+Import queue
+Validation
+Deduplication
+Lead management
+Exports
+```
+
+## Phase C
+
+```text
+Campaigns
+Groq provider
+AI worker
+Structured generation
+Approval Queue
+```
+
+## Phase D
+
+```text
+Resend provider
+Sending worker
+Webhooks
+Suppression
+Delivery states
+```
+
+## Phase E
+
+```text
+Inbound inbox
+Reply classification
+Reply drafting
+CRM
+Revenue
+Analytics
+```
+
+## Phase F
+
+```text
+Tests
+Security review
+Observability
+Docker
+Nginx
+Deployment documentation
+```
+
+Do not skip foundational work to rush to later phases.
+
+---
+
+# 38. CODE QUALITY
+
+Use:
+
+```text
+Strict TypeScript
+Clear module boundaries
+Dependency injection
+Interfaces around external providers
+DTO validation
+Typed environment configuration
+Reusable components
+Small focused services
+Consistent error types
+Documented public interfaces
+```
+
+Avoid:
+
+```text
+any
+giant controllers
+giant React components
+business logic inside UI
+business logic inside controllers
+duplicated code
+hard-coded secrets
+hard-coded provider models
+hard-coded domains where configuration belongs
+unbounded database queries
+blocking CPU work inside HTTP requests
+```
+
+---
+
+# 39. PROVIDER ABSTRACTIONS
+
+External providers must remain replaceable.
+
+Required abstractions:
+
+```text
+AiProvider
+EmailProvider
+ObjectStorageProvider
+```
+
+Current implementations:
+
+```text
+AiProvider → GroqAiProvider
+EmailProvider → ResendEmailProvider
+ObjectStorageProvider → R2StorageProvider
+```
+
+---
+
+# 40. IMPORTANT PRODUCT LIMITATIONS
+
+Do NOT add these to V1:
+
+```text
+WhatsApp automation
+Phone calling
+Lead scraping
+Google Maps scraping
+Automatic contract negotiation
+Automatic discounts
+Automatic pricing decisions
+Automatic legal commitments
+Subscription billing
+Multi-company SaaS
+Multi-user teams
+Mobile application
+Public API
+```
+
+Do not expand scope unless Joshua explicitly instructs you to.
+
+---
+
+# 41. DOCUMENTATION REQUIRED
+
+Create:
+
+## README.md
+
+Product overview and repository structure.
+
+## ARCHITECTURE.md
+
+Detailed architecture and request/job flows.
+
+## SETUP.md
+
+Manual local setup procedure.
+
+## MANUAL_COMMANDS.md
+
+EVERY command Joshua might need to execute manually.
+
+Categorize:
+
+```text
+Install dependencies
+Generate Prisma
+Create database
+Run migrations
+Run development
+Build
+Test
+Docker
+Deploy frontend
+Deploy backend
+```
+
+YOU MUST NOT EXECUTE THESE COMMANDS.
+
+## ENVIRONMENT.md
+
+Every environment variable, purpose and location.
+
+## DEPLOYMENT.md
+
+Vercel frontend + AWS backend deployment procedure.
+
+## SECURITY.md
+
+Security model, secret handling and production checklist.
+
+---
+
+# 42. FINAL SAFETY CHECK
+
+Before every action ask:
+
+```text
+Am I only reading/writing project files?
+```
+
+If YES:
+
+Proceed.
+
+If the action would execute:
+
+```text
+terminal
+shell
+PowerShell
+CMD
+package manager
+installation
+migration
+database
+Docker
+Git
+deployment
+server
+build
+test
+external infrastructure
+```
+
+STOP.
+
+Do not execute it.
+
+Write the required command or procedure to documentation instead.
+
+---
+
+# 43. COMPLETION REQUIREMENT
+
+Do not merely create placeholders or mock screens.
+
+Create genuine working implementation code.
+
+Avoid TODO-only modules.
+
+Avoid fake backend responses where actual implementation can be written.
+
+Implement the business logic.
+
+Where credentials or external services are required, implement the complete integration but use environment variables and mocks/test adapters where appropriate.
+
+At completion provide a report containing:
+
+```text
+Files created
+Architecture implemented
+Features completed
+Features requiring credentials
+Manual commands Joshua must run
+Environment variables required
+Deployment steps remaining
+Known limitations
+Recommended first manual test
+```
+
+Again:
+
+# DO NOT RUN INSTALLATION COMMANDS.
+
+# DO NOT RUN TERMINAL COMMANDS.
+
+# DO NOT RUN THE PROJECT.
+
+# DO NOT RUN TESTS.
+
+# DO NOT RUN DATABASE MIGRATIONS.
+
+# DO NOT RUN DOCKER.
+
+# DO NOT DEPLOY.
+
+# CREATE AND EDIT PROJECT FILES ONLY.
+
+Build Shaliach AI according to this specification.

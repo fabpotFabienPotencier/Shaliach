@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock-groq-001",
+  "object": "chat.completion",
+  "created": 1726779600,
+  "model": "llama-3.3-70b-versatile",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"subject\": \"Quick observation regarding Acme Plumbing web presence\", \"textBody\": \"Hi John,\\n\\nI noticed Acme Plumbing has strong customer reviews in Miami. I help Florida service businesses enhance their web speed and mobile booking experience.\\n\\nWould you be open to a brief 5-minute look at a few quick ideas for your site?\\n\\nBest,\\nJoshua Caleb\\nFounder & Web Developer, FixHubTech\", \"htmlBody\": \"<p>Hi John,</p><p>I noticed Acme Plumbing has strong customer reviews in Miami. I help Florida service businesses enhance their web speed and mobile booking experience.</p><p>Would you be open to a brief 5-minute look at a few quick ideas for your site?</p><p>Best,<br>Joshua Caleb<br>Founder &amp; Web Developer, FixHubTech</p>\", \"confidence\": 0.95, \"warnings\": []}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 340,
+    "completion_tokens": 142,
+    "total_tokens": 482
+  }
+}

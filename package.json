@@ -1,0 +1,31 @@
+{
+  "name": "shaliach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shaliach AI — FixHubTech Outreach & Sales Intelligence",
+  "author": "Joshua Caleb <joshua@fixhubtech.com>",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev:api": "pnpm --filter @shaliach/api dev",
+    "dev:web": "pnpm --filter @shaliach/web dev",
+    "dev:worker": "pnpm --filter @shaliach/worker dev",
+    "dev": "pnpm run --parallel dev:api dev:web dev:worker",
+    "build:api": "pnpm --filter @shaliach/api build",
+    "build:web": "pnpm --filter @shaliach/web build",
+    "build:worker": "pnpm --filter @shaliach/worker build",
+    "build": "pnpm run build:api && pnpm run build:web && pnpm run build:worker",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r run test",
+    "test:e2e": "pnpm --filter @shaliach/api test:e2e",
+    "db:generate": "pnpm --filter @shaliach/database generate",
+    "db:migrate": "pnpm --filter @shaliach/database migrate",
+    "db:seed": "pnpm --filter @shaliach/database seed",
+    "db:studio": "pnpm --filter @shaliach/database studio",
+    "clean": "pnpm -r run clean"
+  }
+}

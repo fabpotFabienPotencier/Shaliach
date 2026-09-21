@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════════════════
+# SHALIACH AI — Dockerfile.api
+# Multi-stage production build for NestJS Fastify API
+# ═══════════════════════════════════════════════════════════════
+
+# Stage 1: Build & Prune
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+RUN npm install -g pnpm
+
+# Copy workspace manifests
+COPY pnpm-workspace.yaml package.json .npmrc tsconfig.base.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/ai/package.json ./packages/ai/
+COPY packages/email/package.json ./packages/email/
+COPY apps/api/package.json ./apps/api/
+
+# Copy full source trees
+COPY packages/ ./packages/
+COPY apps/api/ ./apps/api/
+
+# Generate Prisma Client & Build TypeScript
+RUN pnpm install --frozen-lockfile=false
+RUN pnpm --filter @shaliach/database run generate
+RUN pnpm --filter @shaliach/shared run build || true
+RUN pnpm --filter @shaliach/config run build || true
+RUN pnpm --filter @shaliach/ai run build || true
+RUN pnpm --filter @shaliach/email run build || true
+RUN pnpm --filter @shaliach/api run build
+
+# Stage 2: Production Runner
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN npm install -g pnpm
+
+COPY pnpm-workspace.yaml package.json .npmrc tsconfig.base.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/database/prisma/ ./packages/database/prisma/
+COPY packages/ai/package.json ./packages/ai/
+COPY packages/email/package.json ./packages/email/
+COPY apps/api/package.json ./apps/api/
+
+COPY --from=builder /app/packages/ ./packages/
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+RUN pnpm install --prod --frozen-lockfile=false
+RUN pnpm --filter @shaliach/database run generate
+
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/main.js"]

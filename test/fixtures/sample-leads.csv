@@ -1,0 +1,101 @@
+business_name,email,first_name,website,category,city,state,country,notes
+Acme Plumbing,info@acmeplumbing.com,John,acmeplumbing.com,Plumbing,Miami,FL,US,Needs modern redesign
+Apex Roofing,contact@apexroofingfl.com,Sarah,apexroofingfl.com,Roofing,Tampa,FL,US,Good reviews
+Sunstate Solar,hello@sunstatesolarfl.com,David,sunstatesolarfl.com,Solar,Orlando,FL,US,High conversion potential
+Coastal HVAC,support@coastalhvacfl.com,Mike,coastalhvacfl.com,HVAC,Jacksonville,FL,US,Outdated site
+Elite Electrical,admin@eliteelectricalfl.com,Lisa,eliteelectricalfl.com,Electrical,Fort Lauderdale,FL,US,Looking for leads
+Prime Law Group,office@primelawfl.com,Robert,primelawfl.com,Legal,Miami,FL,US,Corporate client
+Bayview Dental,drsmith@bayviewdentalfl.com,Alex,bayviewdentalfl.com,Dental,St. Petersburg,FL,US,Local practice
+Precision Auto Care,service@precisionautofl.com,Carlos,precisionautofl.com,Automotive,Tallahassee,FL,US,Active business
+Evergreen Landscaping,quotes@evergreenfl.com,Emma,evergreenfl.com,Landscaping,Gainesville,FL,US,Seasonal push
+Gulf Coast Marine,sales@gulfcoastmarinefl.com,James,gulfcoastmarinefl.com,Marine,Sarasota,FL,US,High ticket
+Acme Plumbing,info@acmeplumbing.com,John,acmeplumbing.com,Plumbing,Miami,FL,US,Duplicate Row 1
+Apex Roofing,contact@apexroofingfl.com,Sarah,apexroofingfl.com,Roofing,Tampa,FL,US,Duplicate Row 2
+Sunstate Solar,hello@sunstatesolarfl.com,David,sunstatesolarfl.com,Solar,Orlando,FL,US,Duplicate Row 3
+Coastal HVAC,support@coastalhvacfl.com,Mike,coastalhvacfl.com,HVAC,Jacksonville,FL,US,Duplicate Row 4
+Elite Electrical,admin@eliteelectricalfl.com,Lisa,eliteelectricalfl.com,Electrical,Fort Lauderdale,FL,US,Duplicate Row 5
+Prime Law Group,office@primelawfl.com,Robert,primelawfl.com,Legal,Miami,FL,US,Duplicate Row 6
+Bayview Dental,drsmith@bayviewdentalfl.com,Alex,bayviewdentalfl.com,Dental,St. Petersburg,FL,US,Duplicate Row 7
+Precision Auto Care,service@precisionautofl.com,Carlos,precisionautofl.com,Automotive,Tallahassee,FL,US,Duplicate Row 8
+Evergreen Landscaping,quotes@evergreenfl.com,Emma,evergreenfl.com,Landscaping,Gainesville,FL,US,Duplicate Row 9
+Gulf Coast Marine,sales@gulfcoastmarinefl.com,James,gulfcoastmarinefl.com,Marine,Sarasota,FL,US,Duplicate Row 10
+Bad Syntax 1,plainaddress,Tom,badsyntax1.com,Retail,Miami,FL,US,Malformed email
+Bad Syntax 2,@missingusername.com,Jerry,badsyntax2.com,Retail,Miami,FL,US,Malformed email
+Bad Syntax 3,username@.com,Paul,badsyntax3.com,Retail,Miami,FL,US,Malformed email
+Bad Syntax 4,username@domain..com,Mary,badsyntax4.com,Retail,Miami,FL,US,Malformed email
+Bad Syntax 5,spaces in email@domain.com,Steve,badsyntax5.com,Retail,Miami,FL,US,Malformed email
+Invalid Domain 1,info@nonexistentinvaliddomain1234567.xyz,Bob,,General,Miami,FL,US,Invalid domain
+Invalid Domain 2,info@fakefakefakedomainnotreal999.biz,Tim,,General,Miami,FL,US,Invalid domain
+Invalid Domain 3,info@thisisnotavaliddomainforfixhubtech.info,Dan,,General,Miami,FL,US,Invalid domain
+Invalid Domain 4,info@definitelyfakeandbaddomain777.net,Sam,,General,Miami,FL,US,Invalid domain
+Invalid Domain 5,info@completelybogusdomainnametest555.org,Joe,,General,Miami,FL,US,Invalid domain
+Clean Lead 11,lead11@floridabusiness11.com,Karen,floridabusiness11.com,Consulting,Miami,FL,US,Verified
+Clean Lead 12,lead12@floridabusiness12.com,Brian,floridabusiness12.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 13,lead13@floridabusiness13.com,Nancy,floridabusiness13.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 14,lead14@floridabusiness14.com,Gary,floridabusiness14.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 15,lead15@floridabusiness15.com,Susan,floridabusiness15.com,Consulting,Miami,FL,US,Verified
+Clean Lead 16,lead16@floridabusiness16.com,Kevin,floridabusiness16.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 17,lead17@floridabusiness17.com,Donna,floridabusiness17.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 18,lead18@floridabusiness18.com,Eric,floridabusiness18.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 19,lead19@floridabusiness19.com,Rachel,floridabusiness19.com,Consulting,Miami,FL,US,Verified
+Clean Lead 20,lead20@floridabusiness20.com,Justin,floridabusiness20.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 21,lead21@floridabusiness21.com,Jessica,floridabusiness21.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 22,lead22@floridabusiness22.com,Scott,floridabusiness22.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 23,lead23@floridabusiness23.com,Amanda,floridabusiness23.com,Consulting,Miami,FL,US,Verified
+Clean Lead 24,lead24@floridabusiness24.com,Brandon,floridabusiness24.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 25,lead25@floridabusiness25.com,Melissa,floridabusiness25.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 26,lead26@floridabusiness26.com,Benjamin,floridabusiness26.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 27,lead27@floridabusiness27.com,Stephanie,floridabusiness27.com,Consulting,Miami,FL,US,Verified
+Clean Lead 28,lead28@floridabusiness28.com,Samuel,floridabusiness28.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 29,lead29@floridabusiness29.com,Rebecca,floridabusiness29.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 30,lead30@floridabusiness30.com,Gregory,floridabusiness30.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 31,lead31@floridabusiness31.com,Laura,floridabusiness31.com,Consulting,Miami,FL,US,Verified
+Clean Lead 32,lead32@floridabusiness32.com,Frank,floridabusiness32.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 33,lead33@floridabusiness33.com,Sharon,floridabusiness33.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 34,lead34@floridabusiness34.com,Raymond,floridabusiness34.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 35,lead35@floridabusiness35.com,Cynthia,floridabusiness35.com,Consulting,Miami,FL,US,Verified
+Clean Lead 36,lead36@floridabusiness36.com,Alexander,floridabusiness36.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 37,lead37@floridabusiness37.com,Kathleen,floridabusiness37.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 38,lead38@floridabusiness38.com,Patrick,floridabusiness38.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 39,lead39@floridabusiness39.com,Amy,floridabusiness39.com,Consulting,Miami,FL,US,Verified
+Clean Lead 40,lead40@floridabusiness40.com,Jack,floridabusiness40.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 41,lead41@floridabusiness41.com,Angela,floridabusiness41.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 42,lead42@floridabusiness42.com,Dennis,floridabusiness42.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 43,lead43@floridabusiness43.com,Helen,floridabusiness43.com,Consulting,Miami,FL,US,Verified
+Clean Lead 44,lead44@floridabusiness44.com,Jerry,floridabusiness44.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 45,lead45@floridabusiness45.com,Anna,floridabusiness45.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 46,lead46@floridabusiness46.com,Tyler,floridabusiness46.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 47,lead47@floridabusiness47.com,Brenda,floridabusiness47.com,Consulting,Miami,FL,US,Verified
+Clean Lead 48,lead48@floridabusiness48.com,Aaron,floridabusiness48.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 49,lead49@floridabusiness49.com,Pamela,floridabusiness49.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 50,lead50@floridabusiness50.com,Jose,floridabusiness50.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 51,lead51@floridabusiness51.com,Nicole,floridabusiness51.com,Consulting,Miami,FL,US,Verified
+Clean Lead 52,lead52@floridabusiness52.com,Adam,floridabusiness52.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 53,lead53@floridabusiness53.com,Samantha,floridabusiness53.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 54,lead54@floridabusiness54.com,Nathan,floridabusiness54.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 55,lead55@floridabusiness55.com,Katherine,floridabusiness55.com,Consulting,Miami,FL,US,Verified
+Clean Lead 56,lead56@floridabusiness56.com,Zachary,floridabusiness56.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 57,lead57@floridabusiness57.com,Christine,floridabusiness57.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 58,lead58@floridabusiness58.com,Walter,floridabusiness58.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 59,lead59@floridabusiness59.com,Debra,floridabusiness59.com,Consulting,Miami,FL,US,Verified
+Clean Lead 60,lead60@floridabusiness60.com,Peter,floridabusiness60.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 61,lead61@floridabusiness61.com,Rachel,floridabusiness61.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 62,lead62@floridabusiness62.com,Kyle,floridabusiness62.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 63,lead63@floridabusiness63.com,Janet,floridabusiness63.com,Consulting,Miami,FL,US,Verified
+Clean Lead 64,lead64@floridabusiness64.com,Harold,floridabusiness64.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 65,lead65@floridabusiness65.com,Maria,floridabusiness65.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 66,lead66@floridabusiness66.com,Carl,floridabusiness66.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 67,lead67@floridabusiness67.com,Heather,floridabusiness67.com,Consulting,Miami,FL,US,Verified
+Clean Lead 68,lead68@floridabusiness68.com,Arthur,floridabusiness68.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 69,lead69@floridabusiness69.com,Diane,floridabusiness69.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 70,lead70@floridabusiness70.com,Ryan,floridabusiness70.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 71,lead71@floridabusiness71.com,Julie,floridabusiness71.com,Consulting,Miami,FL,US,Verified
+Clean Lead 72,lead72@floridabusiness72.com,Roger,floridabusiness72.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 73,lead73@floridabusiness73.com,Joyce,floridabusiness73.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 74,lead74@floridabusiness74.com,Joe,floridabusiness74.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 75,lead75@floridabusiness75.com,Evelyn,floridabusiness75.com,Consulting,Miami,FL,US,Verified
+Clean Lead 76,lead76@floridabusiness76.com,Juan,floridabusiness76.com,Consulting,Tampa,FL,US,Verified
+Clean Lead 77,lead77@floridabusiness77.com,Joan,floridabusiness77.com,Consulting,Orlando,FL,US,Verified
+Clean Lead 78,lead78@floridabusiness78.com,Albert,floridabusiness78.com,Consulting,Jacksonville,FL,US,Verified
+Clean Lead 79,lead79@floridabusiness79.com,Kelly,floridabusiness79.com,Consulting,Miami,FL,US,Verified
+Clean Lead 80,lead80@floridabusiness80.com,Dylan,floridabusiness80.com,Consulting,Tampa,FL,US,Verified

@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════════════
+# SHALIACH AI — Dockerfile.worker
+# Multi-stage production build for BullMQ background workers
+# ═══════════════════════════════════════════════════════════════
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+RUN npm install -g pnpm
+
+COPY pnpm-workspace.yaml package.json .npmrc tsconfig.base.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/ai/package.json ./packages/ai/
+COPY packages/email/package.json ./packages/email/
+COPY apps/worker/package.json ./apps/worker/
+
+COPY packages/ ./packages/
+COPY apps/worker/ ./apps/worker/
+
+RUN pnpm install --frozen-lockfile=false
+RUN pnpm --filter @shaliach/database run generate
+RUN pnpm --filter @shaliach/shared run build || true
+RUN pnpm --filter @shaliach/config run build || true
+RUN pnpm --filter @shaliach/ai run build || true
+RUN pnpm --filter @shaliach/email run build || true
+RUN pnpm --filter @shaliach/worker run build
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN npm install -g pnpm
+
+COPY pnpm-workspace.yaml package.json .npmrc tsconfig.base.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/database/prisma/ ./packages/database/prisma/
+COPY packages/ai/package.json ./packages/ai/
+COPY packages/email/package.json ./packages/email/
+COPY apps/worker/package.json ./apps/worker/
+
+COPY --from=builder /app/packages/ ./packages/
+COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
+
+RUN pnpm install --prod --frozen-lockfile=false
+RUN pnpm --filter @shaliach/database run generate
+
+CMD ["node", "apps/worker/dist/main.js"]

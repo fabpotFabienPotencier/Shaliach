@@ -1,0 +1,11 @@
+{
+  "type": "email.delivered",
+  "created_at": "2026-09-19T20:00:00.000Z",
+  "data": {
+    "created_at": "2026-09-19T19:59:00.000Z",
+    "email_id": "resend_msg_test_12345",
+    "from": "Joshua Caleb <joshua@mail.fixhubtech.com>",
+    "to": ["info@acmeplumbing.com"],
+    "subject": "Quick observation regarding Acme Plumbing web presence"
+  }
+}
