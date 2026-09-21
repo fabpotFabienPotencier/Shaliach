@@ -8,7 +8,7 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "pnpm@9.12.0",
+
   "scripts": {
     "dev:api": "pnpm --filter @shaliach/api dev",
     "dev:web": "pnpm --filter @shaliach/web dev",
