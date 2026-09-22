@@ -47,7 +47,11 @@ export interface Campaign {
   updatedAt: Date;
 }
 
-export type CampaignMode = 'MANUAL' | 'AI';
+export const CampaignMode = {
+  MANUAL: 'MANUAL',
+  AI: 'AI',
+} as const;
+export type CampaignMode = (typeof CampaignMode)[keyof typeof CampaignMode];
 
 /**
  * Campaign creation input.
