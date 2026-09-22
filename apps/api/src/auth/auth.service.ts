@@ -7,7 +7,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../common/prisma.service';
-import { RedisService } from '../redis.service';
+import { RedisService } from '../common/redis.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto, ChangePasswordDto } from './auth.dto';
 import { ErrorCode } from '@shaliach/shared';

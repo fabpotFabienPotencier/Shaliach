@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { PrismaService } from '../common/prisma.service';
-import { RedisService } from '../redis.service';
+import { RedisService } from '../common/redis.service';
 import { ValidationStatus, CampaignStatus, EmailStatus, CrmStatus } from '@shaliach/shared';
 
 @Injectable()
