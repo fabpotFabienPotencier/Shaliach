@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "commonjs",
+    "moduleResolution": "node",
     "declaration": false,
+    "declarationMap": false,
     "removeComments": true,
     "target": "ES2022",
     "outDir": "./dist",
