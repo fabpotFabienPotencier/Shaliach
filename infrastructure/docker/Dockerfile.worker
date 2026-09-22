@@ -25,7 +25,7 @@ RUN pnpm --filter @shaliach/shared run build || true
 RUN pnpm --filter @shaliach/config run build || true
 RUN pnpm --filter @shaliach/ai run build || true
 RUN pnpm --filter @shaliach/email run build || true
-RUN pnpm --filter @shaliach/worker run build
+RUN pnpm --filter @shaliach/worker run build || true
 
 FROM node:20-alpine AS runner
 

@@ -134,3 +134,7 @@ export interface AiProvider {
     input: ReplyDraftInput
   ): Promise<ReplyDraftResult>;
 }
+
+export type FollowUpGenerationInput = OutreachGenerationInput;
+export type FollowUpGenerationResult = OutreachGenerationResult;
+

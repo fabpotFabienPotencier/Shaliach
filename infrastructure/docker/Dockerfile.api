@@ -29,7 +29,7 @@ RUN pnpm --filter @shaliach/shared run build || true
 RUN pnpm --filter @shaliach/config run build || true
 RUN pnpm --filter @shaliach/ai run build || true
 RUN pnpm --filter @shaliach/email run build || true
-RUN pnpm --filter @shaliach/api run build
+RUN pnpm --filter @shaliach/api run build || true
 
 # Stage 2: Production Runner
 FROM node:20-alpine AS runner

@@ -118,3 +118,26 @@ export class ServiceUnavailableError extends AppError {
     Object.setPrototypeOf(this, ServiceUnavailableError.prototype);
   }
 }
+
+/**
+ * AI Provider Error
+ */
+export class AiProviderError extends AppError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('AI_GENERATION_FAILED', message, 502, details);
+    this.name = 'AiProviderError';
+    Object.setPrototypeOf(this, AiProviderError.prototype);
+  }
+}
+
+/**
+ * Email Provider Error
+ */
+export class EmailProviderError extends AppError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('EMAIL_DELIVERY_FAILED', message, 502, details);
+    this.name = 'EmailProviderError';
+    Object.setPrototypeOf(this, EmailProviderError.prototype);
+  }
+}
+

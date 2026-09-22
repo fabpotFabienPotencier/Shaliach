@@ -27,14 +27,50 @@ export * from './constants/limits';
 export * from './constants/patterns';
 export * from './constants/disposable-domains';
 
-// Validation schemas
-export * from './validation/lead.schema';
-export * from './validation/campaign.schema';
+// Validation utilities & schemas
+export * from './validation/email.validation';
 export * from './validation/email.schema';
 export * from './validation/import.schema';
-export * from './validation/auth.schema';
 export * from './validation/settings.schema';
+
+export {
+  createLeadSchema,
+  updateLeadSchema,
+  leadFiltersSchema,
+  addLeadNoteSchema,
+  recordRevenueSchema,
+  columnMappingSchema,
+  type CreateLeadInput,
+  type LeadFiltersInput,
+  type AddLeadNoteInput,
+  type RecordRevenueInput,
+  type ColumnMappingInput,
+} from './validation/lead.schema';
+
+export {
+  createCampaignSchema,
+  updateCampaignSchema,
+  addRecipientsToCampaignSchema,
+  bulkApprovalSchema,
+  editEmailContentSchema,
+  type UpdateCampaignInput,
+  type AddRecipientsInput,
+  type BulkApprovalInput,
+  type EditEmailContentInput,
+} from './validation/campaign.schema';
+
+export {
+  loginSchema,
+  changePasswordSchema,
+  type ChangePasswordInput,
+} from './validation/auth.schema';
+
+// Aliases
+export { RecipientStatus as CampaignRecipientStatus } from './enums/approval-action.enum';
+export { ImportStatus as ImportJobStatus } from './enums/import-status.enum';
+export { EmailEvent as EmailEventType } from './enums/email-status.enum';
 
 // Errors
 export * from './errors/app-error';
 export * from './errors/error-codes';
+
