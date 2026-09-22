@@ -25,6 +25,7 @@ COPY apps/api/ ./apps/api/
 # Generate Prisma Client & Build TypeScript
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @shaliach/database run generate
+RUN pnpm --filter @shaliach/database run build || true
 RUN pnpm --filter @shaliach/shared run build || true
 RUN pnpm --filter @shaliach/config run build || true
 RUN pnpm --filter @shaliach/ai run build || true

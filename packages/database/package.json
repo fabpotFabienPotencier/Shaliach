@@ -2,8 +2,8 @@
   "name": "@shaliach/database",
   "version": "1.0.0",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "scripts": {
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",

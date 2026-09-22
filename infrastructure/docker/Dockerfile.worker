@@ -21,6 +21,7 @@ COPY apps/worker/ ./apps/worker/
 
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @shaliach/database run generate
+RUN pnpm --filter @shaliach/database run build || true
 RUN pnpm --filter @shaliach/shared run build || true
 RUN pnpm --filter @shaliach/config run build || true
 RUN pnpm --filter @shaliach/ai run build || true
