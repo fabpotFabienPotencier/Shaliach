@@ -42,6 +42,8 @@ async function bootstrap() {
     crossOriginEmbedderPolicy: false,
   });
 
+  // CORS configuration
+  await app.register(fastifyCors, {
     origin: (origin, cb) => {
       // Allow localhost in dev, and shaliach.fixhubtech.com in prod
       if (
