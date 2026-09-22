@@ -9,11 +9,11 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@shaliach/shared": "*",
-    "@shaliach/config": "*",
-    "@shaliach/database": "*",
-    "@shaliach/ai": "*",
-    "@shaliach/email": "*",
+    "@shaliach/shared": "workspace:*",
+    "@shaliach/config": "workspace:*",
+    "@shaliach/database": "workspace:*",
+    "@shaliach/ai": "workspace:*",
+    "@shaliach/email": "workspace:*",
     "@aws-sdk/client-s3": "^3.654.0",
     "bullmq": "^5.14.0",
     "csv-parse": "^5.5.6",
