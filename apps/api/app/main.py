@@ -50,6 +50,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Initial Redis connection check: {e}")
 
+    # Ensure database schema exists and default data is seeded
+    try:
+        from .database import init_db
+        await init_db()
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
+
     yield
 
     logger.info("Shutting down Shaliach AI API...")
