@@ -132,7 +132,7 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-4 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="rounded-lg bg-muted/40 p-3">
                 <div className="text-xs text-muted-foreground">Queued</div>
                 <div className="text-lg font-bold mt-0.5">{stats.emails.queued}</div>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
                   style={{ width: `${Math.round((stats.leads.invalid / (stats.leads.total || 1)) * 100)}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
+              <div className="flex flex-wrap gap-2 justify-between text-[11px] text-muted-foreground pt-1">
                 <span className="flex items-center">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 mr-1.5" />
                   Valid: {stats.leads.valid}
