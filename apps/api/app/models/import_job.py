@@ -1,0 +1,73 @@
+"""ImportJob and ImportRow models — maps to 'import_jobs' and 'import_rows' tables."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import String, Integer, Text, DateTime, JSON, ForeignKey, Index, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from ..database import Base
+
+
+class ImportJob(Base):
+    __tablename__ = "import_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    file_name: Mapped[str] = mapped_column(String, nullable=False)
+    original_file_name: Mapped[str] = mapped_column(String, nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    r2_key: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="PENDING")
+
+    column_mapping: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    total_rows: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    processed_rows: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    success_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    invalid_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    risky_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    suppressed_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    errors: Mapped[list] = mapped_column(JSON, nullable=False, server_default="[]")
+
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    lead_list_id: Mapped[str | None] = mapped_column(String, ForeignKey("lead_lists.id", ondelete="SET NULL"), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    lead_list = relationship("LeadList", back_populates="import_jobs", lazy="selectin")
+    leads = relationship("Lead", back_populates="import_job", lazy="selectin")
+    import_rows = relationship("ImportRow", back_populates="import_job", lazy="selectin", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_import_jobs_status", "status"),
+        Index("ix_import_jobs_created_at", "created_at"),
+    )
+
+
+class ImportRow(Base):
+    __tablename__ = "import_rows"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    import_job_id: Mapped[str] = mapped_column(String, ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False)
+    row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lead_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    import_job = relationship("ImportJob", back_populates="import_rows", lazy="selectin")
+
+    __table_args__ = (
+        Index("ix_import_rows_import_job_id", "import_job_id"),
+        Index("ix_import_rows_status", "status"),
+    )

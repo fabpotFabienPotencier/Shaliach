@@ -178,10 +178,10 @@ export class CampaignsService {
   async triggerAiGeneration(id: string, userId?: string) {
     const campaign = await this.getCampaignById(id);
 
-    if (campaign.mode !== CampaignMode.AI_GENERATED) {
+    if (campaign.mode !== CampaignMode.AI) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_FAILED,
-        message: 'Campaign is not in AI_GENERATED mode',
+        message: 'Campaign is not in AI mode',
       });
     }
 

@@ -67,4 +67,8 @@ export const ErrorCodes = {
   REDIS_ERROR: 'REDIS_ERROR',
 } as const;
 
+/** ErrorCode as a const object — use ErrorCode.XXX for runtime values */
+export const ErrorCode = ErrorCodes;
+
+/** ErrorCode as a type — use for type annotations */
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

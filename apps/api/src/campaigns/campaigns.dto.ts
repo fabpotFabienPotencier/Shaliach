@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import type { CampaignMode } from '@shaliach/shared';
+import { CampaignMode } from '@shaliach/shared';
 
 export const CreateCampaignSchema = z.object({
   name: z.string().min(2).max(100),
   description: z.string().optional(),
-  mode: z.enum(['MANUAL', 'AI']),
+  mode: z.nativeEnum(CampaignMode),
   senderProfileId: z.string().optional(),
   dailySendLimit: z.number().int().min(1).max(2000).default(50),
   promptGuidelines: z.string().optional(),
