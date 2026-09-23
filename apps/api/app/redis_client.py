@@ -19,9 +19,21 @@ redis_client: Redis = from_url(
 )
 
 
-async def get_redis() -> Redis:
-    """Dependency: return the shared Redis client."""
+def get_redis() -> Redis:
+    """Return the shared Redis client (works as FastAPI dependency and direct call)."""
     return redis_client
+
+
+async def close_redis() -> None:
+    """Close Redis connection pool."""
+    try:
+        if hasattr(redis_client, "aclose"):
+            await redis_client.aclose()
+        else:
+            await redis_client.close()
+    except Exception as e:
+        logger.warning(f"Error closing Redis client: {e}")
+
 
 
 async def redis_get(key: str) -> str | None:
