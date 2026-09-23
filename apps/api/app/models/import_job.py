@@ -45,6 +45,50 @@ class ImportJob(Base):
     leads = relationship("Lead", back_populates="import_job", lazy="selectin")
     import_rows = relationship("ImportRow", back_populates="import_job", lazy="selectin", cascade="all, delete-orphan")
 
+    # Aliases for frontend/service compatibility
+    @property
+    def original_filename(self) -> str:
+        return self.original_file_name
+
+    @property
+    def file_key(self) -> str:
+        return self.r2_key
+
+    @property
+    def valid_rows(self) -> int:
+        return self.success_count
+
+    @property
+    def invalid_rows(self) -> int:
+        return self.invalid_count
+
+    @property
+    def duplicate_rows(self) -> int:
+        return self.duplicate_count
+
+    @property
+    def risky_rows(self) -> int:
+        return self.risky_count
+
+    @property
+    def suppressed_rows(self) -> int:
+        return self.suppressed_count
+
+    @property
+    def error_message(self) -> str | None:
+        if self.errors and isinstance(self.errors, list) and len(self.errors) > 0:
+            return str(self.errors[0])
+        return None
+
+    def __init__(self, **kwargs):
+        if "original_filename" in kwargs and "original_file_name" not in kwargs:
+            kwargs["original_file_name"] = kwargs.pop("original_filename")
+        if "file_key" in kwargs and "r2_key" not in kwargs:
+            kwargs["r2_key"] = kwargs.pop("file_key")
+        if "file_name" not in kwargs:
+            kwargs["file_name"] = kwargs.get("original_file_name", "import.csv")
+        super().__init__(**kwargs)
+
     __table_args__ = (
         Index("ix_import_jobs_status", "status"),
         Index("ix_import_jobs_created_at", "created_at"),

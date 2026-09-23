@@ -12,6 +12,8 @@ from enum import Enum
 class CampaignMode(str, Enum):
     MANUAL = "MANUAL"
     AI = "AI"
+    AI_GENERATED = "AI_GENERATED"
+    MANUAL_TEMPLATE = "MANUAL_TEMPLATE"
 
 
 class CampaignStatus(str, Enum):

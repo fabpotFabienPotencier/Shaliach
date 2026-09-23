@@ -151,11 +151,28 @@ class CampaignsService:
         if not sender_profile_id:
             profile_stmt = select(SenderProfile.id).where(SenderProfile.is_default.is_(True))
             sender_profile_id = (await self.db.execute(profile_stmt)).scalar()
+        if not sender_profile_id:
+            profile_stmt = select(SenderProfile.id).order_by(SenderProfile.created_at)
+            sender_profile_id = (await self.db.execute(profile_stmt)).scalar()
+        if not sender_profile_id:
+            default_sender = SenderProfile(
+                name="Joshua Caleb",
+                from_email="joshua@mail.fixhubtech.com",
+                from_name="Joshua Caleb",
+                reply_to_email="joshua@reply.fixhubtech.com",
+                is_default=True,
+                daily_limit=100,
+            )
+            self.db.add(default_sender)
+            await self.db.flush()
+            sender_profile_id = default_sender.id
+
+        mode_val = dto.mode.value if hasattr(dto.mode, "value") else str(dto.mode)
 
         campaign = Campaign(
             name=dto.name,
             description=dto.description,
-            mode=dto.mode.value,
+            mode=mode_val,
             sender_profile_id=sender_profile_id,
             daily_send_limit=dto.dailySendLimit,
             prompt_guidelines=dto.promptGuidelines,

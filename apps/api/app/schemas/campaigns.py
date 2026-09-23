@@ -10,7 +10,7 @@ from ..enums import CampaignMode
 class CreateCampaignSchema(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     description: str | None = None
-    mode: CampaignMode
+    mode: CampaignMode | str = CampaignMode.AI_GENERATED
     senderProfileId: str | None = None
     dailySendLimit: int = Field(default=50, ge=1, le=2000)
     promptGuidelines: str | None = None
