@@ -17,11 +17,15 @@ class CampaignMode(str, Enum):
 class CampaignStatus(str, Enum):
     DRAFT = "DRAFT"
     GENERATING = "GENERATING"
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    APPROVED = "APPROVED"
+    QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
 
 
 # ── Validation ────────────────────────────────────────────────
@@ -129,6 +133,7 @@ ImportJobStatus = ImportStatus
 class RecipientStatus(str, Enum):
     PENDING = "PENDING"
     GENERATING = "GENERATING"
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     APPROVED = "APPROVED"
     SKIPPED = "SKIPPED"
