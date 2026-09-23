@@ -9,8 +9,8 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@shaliach/shared": "workspace:*",
-    "@shaliach/config": "workspace:*",
+    "@shaliach/shared": "*",
+    "@shaliach/config": "*",
     "resend": "^4.0.0"
   },
   "devDependencies": {

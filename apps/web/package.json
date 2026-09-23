@@ -10,8 +10,8 @@
     "clean": "rimraf .next dist"
   },
   "dependencies": {
-    "@shaliach/shared": "workspace:*",
-    "@shaliach/ui": "workspace:*",
+    "@shaliach/shared": "*",
+    "@shaliach/ui": "*",
     "@tanstack/react-query": "^5.56.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.446.0",
