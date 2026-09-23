@@ -14,6 +14,18 @@ from ..errors import AppError, ErrorCode
 logger = logging.getLogger("shaliach.error")
 
 
+def _cors_response(request: Request, status_code: int, payload: dict) -> JSONResponse:
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin and ("fixhubtech.com" in origin or "localhost" in origin or "127.0.0.1" in origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Access-Control-Allow-Methods"] = "*"
+        headers["Access-Control-Allow-Headers"] = "*"
+
+    return JSONResponse(status_code=status_code, content=payload, headers=headers)
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
@@ -32,7 +44,7 @@ def register_error_handlers(app: FastAPI) -> None:
         else:
             logger.warning(f"[{request.method}] {request.url.path} - Status: {status_code} - Code: {exc.code} - Message: {exc.error_message}")
 
-        return JSONResponse(status_code=status_code, content=payload)
+        return _cors_response(request, status_code, payload)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError):
@@ -55,7 +67,7 @@ def register_error_handlers(app: FastAPI) -> None:
             "path": str(request.url.path),
         }
         logger.warning(f"[{request.method}] {request.url.path} - Validation Error: {message}")
-        return JSONResponse(status_code=status_code, content=payload)
+        return _cors_response(request, status_code, payload)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
@@ -78,7 +90,7 @@ def register_error_handlers(app: FastAPI) -> None:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": str(request.url.path),
         }
-        return JSONResponse(status_code=status_code, content=payload)
+        return _cors_response(request, status_code, payload)
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
@@ -92,4 +104,4 @@ def register_error_handlers(app: FastAPI) -> None:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": str(request.url.path),
         }
-        return JSONResponse(status_code=500, content=payload)
+        return _cors_response(request, 500, payload)

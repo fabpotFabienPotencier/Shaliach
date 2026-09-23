@@ -37,16 +37,20 @@ async def login(
 
     result = await service.login(dto, ip_address, user_agent)
 
-    # Set secure HTTP-only cookie
-    response.set_cookie(
-        key="shaliach_session",
-        value=result["sessionId"],
-        max_age=7 * 24 * 60 * 60,
-        path="/",
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-    )
+    # Set secure HTTP-only cookie supporting cross-subdomain authentication
+    cookie_kwargs = {
+        "key": "shaliach_session",
+        "value": result["sessionId"],
+        "max_age": 7 * 24 * 60 * 60,
+        "path": "/",
+        "httponly": True,
+        "secure": True,
+        "samesite": "none",
+    }
+    if settings.is_production:
+        cookie_kwargs["domain"] = ".fixhubtech.com"
+
+    response.set_cookie(**cookie_kwargs)
 
     return {
         "success": True,
@@ -66,7 +70,10 @@ async def logout(
     ip_address = request.client.host if request.client else None
     await service.logout(session_id, current_user.id, ip_address)
 
-    response.delete_cookie(key="shaliach_session", path="/")
+    delete_kwargs = {"key": "shaliach_session", "path": "/"}
+    if settings.is_production:
+        delete_kwargs["domain"] = ".fixhubtech.com"
+    response.delete_cookie(**delete_kwargs)
     return {
         "success": True,
         "message": "Logged out successfully",

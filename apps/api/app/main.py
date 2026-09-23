@@ -13,7 +13,6 @@ from .database import engine
 from .redis_client import get_redis, close_redis
 from .queue import close_queue
 from .middleware.error_handler import register_error_handlers
-from .middleware.auth import SessionAuthMiddleware
 
 # Routers
 from .routers.health import router as health_router
@@ -82,6 +81,7 @@ allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://shaliach.fixhubtech.com",
+    "https://api.shaliach.fixhubtech.com",
     "https://app.fixhubtech.com",
 ]
 if settings.APP_URL and settings.APP_URL not in allowed_origins:
@@ -92,22 +92,10 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=r"^https://.*\.fixhubtech\.com$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=[
-        "Origin",
-        "X-Requested-With",
-        "Content-Type",
-        "Accept",
-        "Authorization",
-        "X-Session-ID",
-        "X-CSRF-Token",
-        "svix-id",
-        "svix-timestamp",
-        "svix-signature",
-    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
-
-app.add_middleware(SessionAuthMiddleware)
 
 # Register Exception Handlers
 register_error_handlers(app)
