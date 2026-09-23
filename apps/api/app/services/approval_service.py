@@ -197,7 +197,7 @@ class ApprovalService:
                 logger.warning(f"Could not enqueue AI regenerate in ARQ: {e}")
 
         elif action == "SKIP":
-            recipient.status = CampaignRecipientStatus.CANCELLED.value
+            recipient.status = CampaignRecipientStatus.SKIPPED.value
             await self.db.commit()
 
         elif action == "SUPPRESS":

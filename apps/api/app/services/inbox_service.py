@@ -12,8 +12,8 @@ from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..models.suppression import SuppressionEntry
 from ..schemas.inbox import SendReplySchema
-from ..enums import EmailStatus, ErrorCode
-from ..errors import NotFoundError, ValidationError
+from ..enums import EmailStatus
+from ..errors import NotFoundError, ValidationError, ErrorCode
 from ..queue import get_queue
 from .audit_service import AuditService
 

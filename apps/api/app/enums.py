@@ -141,11 +141,15 @@ class RecipientStatus(str, Enum):
     REPLIED = "REPLIED"
     UNSUBSCRIBED = "UNSUBSCRIBED"
     SUPPRESSED = "SUPPRESSED"
+    CANCELLED = "CANCELLED"
     GENERATION_FAILED = "GENERATION_FAILED"
 
 
 # Alias
 CampaignRecipientStatus = RecipientStatus
+
+# Re-export ErrorCode for backward compatibility
+from .errors import ErrorCode
 
 
 # ── Approval ──────────────────────────────────────────────────
