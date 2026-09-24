@@ -106,6 +106,23 @@ class CampaignRecipient(Base):
     follow_up_message = relationship("EmailMessage", foreign_keys=[follow_up_message_id], lazy="selectin")
     ai_generation = relationship("AiGeneration", back_populates="campaign_recipients", lazy="selectin")
 
+    # Helper aliases for worker and frontend compatibility
+    @property
+    def primary_message_id(self) -> str | None:
+        return self.email_message_id
+
+    @primary_message_id.setter
+    def primary_message_id(self, val: str | None):
+        self.email_message_id = val
+
+    @property
+    def primary_email_messages(self) -> list:
+        return [self.email_message] if self.email_message else []
+
+    @property
+    def email_messages(self) -> list:
+        return [self.email_message] if self.email_message else []
+
     __table_args__ = (
         UniqueConstraint("campaign_id", "lead_id", name="uq_campaign_recipients_campaign_lead"),
         Index("ix_campaign_recipients_status", "status"),

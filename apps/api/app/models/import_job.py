@@ -111,6 +111,12 @@ class ImportRow(Base):
     # Relationships
     import_job = relationship("ImportJob", back_populates="import_rows", lazy="selectin")
 
+    def __init__(self, **kwargs):
+        if "validation_status" in kwargs and "status" not in kwargs:
+            kwargs["status"] = kwargs.pop("validation_status")
+        kwargs.pop("email", None)
+        super().__init__(**kwargs)
+
     __table_args__ = (
         Index("ix_import_rows_import_job_id", "import_job_id"),
         Index("ix_import_rows_status", "status"),

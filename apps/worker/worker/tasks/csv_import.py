@@ -55,7 +55,7 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
             await db.execute(
                 update(ImportJob)
                 .where(ImportJob.id == import_job_id)
-                .values(status=ImportJobStatus.FAILED.value, error_message="File not found in storage")
+                .values(status=ImportJobStatus.FAILED.value, errors=["File not found in storage"])
             )
             await db.commit()
         return {"success": False, "error": "File not found"}
@@ -113,8 +113,7 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                     ImportRow(
                         import_job_id=import_job_id,
                         row_number=total_rows,
-                        email=raw_email,
-                        validation_status=ValidationStatus.INVALID.value,
+                        status=ValidationStatus.INVALID.value,
                         error_message="Malformed email syntax",
                         raw_data=row,
                     )
@@ -128,8 +127,7 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                     ImportRow(
                         import_job_id=import_job_id,
                         row_number=total_rows,
-                        email=raw_email,
-                        validation_status=ValidationStatus.SUPPRESSED.value,
+                        status=ValidationStatus.SUPPRESSED.value,
                         error_message="Email is in global suppression list",
                         raw_data=row,
                     )
@@ -143,8 +141,7 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                     ImportRow(
                         import_job_id=import_job_id,
                         row_number=total_rows,
-                        email=raw_email,
-                        validation_status=ValidationStatus.DUPLICATE.value,
+                        status=ValidationStatus.DUPLICATE.value,
                         error_message="Duplicate email in file",
                         raw_data=row,
                     )
@@ -178,8 +175,7 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                 ImportRow(
                     import_job_id=import_job_id,
                     row_number=total_rows,
-                    email=raw_email,
-                    validation_status=ValidationStatus.VALID.value,
+                    status=ValidationStatus.VALID.value,
                     raw_data=row,
                 )
             )
@@ -198,10 +194,10 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                     .where(ImportJob.id == import_job_id)
                     .values(
                         processed_rows=total_rows,
-                        valid_rows=valid_count,
-                        invalid_rows=invalid_count,
-                        duplicate_rows=duplicate_count,
-                        suppressed_rows=suppressed_count,
+                        success_count=valid_count,
+                        invalid_count=invalid_count,
+                        duplicate_count=duplicate_count,
+                        suppressed_count=suppressed_count,
                     )
                 )
                 await db.commit()
@@ -220,10 +216,10 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                 status=ImportJobStatus.COMPLETED.value,
                 total_rows=total_rows,
                 processed_rows=total_rows,
-                valid_rows=valid_count,
-                invalid_rows=invalid_count,
-                duplicate_rows=duplicate_count,
-                suppressed_rows=suppressed_count,
+                success_count=valid_count,
+                invalid_count=invalid_count,
+                duplicate_count=duplicate_count,
+                suppressed_count=suppressed_count,
                 completed_at=datetime.now(timezone.utc),
             )
         )
