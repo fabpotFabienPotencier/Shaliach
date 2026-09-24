@@ -37,7 +37,7 @@ class ApprovalService:
                 selectinload(CampaignRecipient.lead),
                 selectinload(CampaignRecipient.campaign).selectinload(Campaign.sender_profile),
                 selectinload(CampaignRecipient.ai_generation),
-                selectinload(CampaignRecipient.primary_email_messages),
+                selectinload(CampaignRecipient.email_message),
             )
             .where(*conditions)
             .order_by(desc(CampaignRecipient.created_at))
@@ -49,7 +49,14 @@ class ApprovalService:
 
         items = []
         for r in recipients:
-            primary_msg = r.primary_email_messages[0] if r.primary_email_messages else None
+            primary_msg = r.email_message
+            draft_dict = {
+                "id": primary_msg.id,
+                "subject": primary_msg.subject,
+                "textBody": primary_msg.text_body,
+                "htmlBody": primary_msg.html_body,
+            } if primary_msg else None
+
             items.append({
                 "id": r.id,
                 "campaignId": r.campaign_id,
@@ -76,12 +83,8 @@ class ApprovalService:
                     "id": r.ai_generation.id,
                     "result": r.ai_generation.result,
                 } if r.ai_generation else None,
-                "draft": {
-                    "id": primary_msg.id,
-                    "subject": primary_msg.subject,
-                    "textBody": primary_msg.text_body,
-                    "htmlBody": primary_msg.html_body,
-                } if primary_msg else None,
+                "draft": draft_dict,
+                "emailMessages": [draft_dict] if draft_dict else [],
             })
 
         return {"items": items, "totalCount": total_count}
@@ -89,7 +92,7 @@ class ApprovalService:
     async def edit_draft(self, recipient_id: str, dto: EditDraftSchema, user_id: str | None = None) -> dict:
         stmt = (
             select(CampaignRecipient)
-            .options(selectinload(CampaignRecipient.primary_email_messages))
+            .options(selectinload(CampaignRecipient.email_message))
             .where(CampaignRecipient.id == recipient_id)
         )
         result = await self.db.execute(stmt)
@@ -97,7 +100,7 @@ class ApprovalService:
         if not recipient:
             raise NotFoundError("CampaignRecipient", recipient_id)
 
-        primary_msg = recipient.primary_email_messages[0] if recipient.primary_email_messages else None
+        primary_msg = recipient.email_message
         if primary_msg:
             primary_msg.subject = dto.subject
             primary_msg.text_body = dto.bodyText
@@ -143,7 +146,7 @@ class ApprovalService:
             .options(
                 selectinload(CampaignRecipient.lead),
                 selectinload(CampaignRecipient.campaign),
-                selectinload(CampaignRecipient.primary_email_messages),
+                selectinload(CampaignRecipient.email_message),
             )
             .where(CampaignRecipient.id == recipient_id)
         )
@@ -162,7 +165,7 @@ class ApprovalService:
                 raise ValidationError(f"Lead email is suppressed: {supp.reason}")
 
             recipient.status = CampaignRecipientStatus.APPROVED.value
-            primary_msg = recipient.primary_email_messages[0] if recipient.primary_email_messages else None
+            primary_msg = recipient.email_message
             if primary_msg:
                 primary_msg.status = EmailStatus.APPROVED.value
 

@@ -80,15 +80,6 @@ class ImportJob(Base):
             return str(self.errors[0])
         return None
 
-    def __init__(self, **kwargs):
-        if "original_filename" in kwargs and "original_file_name" not in kwargs:
-            kwargs["original_file_name"] = kwargs.pop("original_filename")
-        if "file_key" in kwargs and "r2_key" not in kwargs:
-            kwargs["r2_key"] = kwargs.pop("file_key")
-        if "file_name" not in kwargs:
-            kwargs["file_name"] = kwargs.get("original_file_name", "import.csv")
-        super().__init__(**kwargs)
-
     __table_args__ = (
         Index("ix_import_jobs_status", "status"),
         Index("ix_import_jobs_created_at", "created_at"),
@@ -110,12 +101,6 @@ class ImportRow(Base):
 
     # Relationships
     import_job = relationship("ImportJob", back_populates="import_rows", lazy="selectin")
-
-    def __init__(self, **kwargs):
-        if "validation_status" in kwargs and "status" not in kwargs:
-            kwargs["status"] = kwargs.pop("validation_status")
-        kwargs.pop("email", None)
-        super().__init__(**kwargs)
 
     __table_args__ = (
         Index("ix_import_rows_import_job_id", "import_job_id"),

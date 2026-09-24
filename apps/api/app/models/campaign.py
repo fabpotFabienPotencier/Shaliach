@@ -115,14 +115,6 @@ class CampaignRecipient(Base):
     def primary_message_id(self, val: str | None):
         self.email_message_id = val
 
-    @property
-    def primary_email_messages(self) -> list:
-        return [self.email_message] if self.email_message else []
-
-    @property
-    def email_messages(self) -> list:
-        return [self.email_message] if self.email_message else []
-
     __table_args__ = (
         UniqueConstraint("campaign_id", "lead_id", name="uq_campaign_recipients_campaign_lead"),
         Index("ix_campaign_recipients_status", "status"),
