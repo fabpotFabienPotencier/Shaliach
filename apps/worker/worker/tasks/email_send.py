@@ -101,35 +101,47 @@ async def send_email(ctx: dict, campaign_recipient_id: str | None = None, email_
             from_email=email_msg.from_email,
             reply_to=email_msg.reply_to_email,
         )
-        res = await provider.send(
-            to=lead.email,
-            subject=email_msg.subject,
-            text_body=final_text,
-            html_body=final_html,
-        )
-        provider_message_id = res.get("providerMessageId")
-
-        # 5. Update EmailMessage
-        email_msg.status = EmailStatus.SENT.value
-        email_msg.provider_message_id = provider_message_id
-        email_msg.sent_at = datetime.now(timezone.utc)
-
-        # 6. Update CampaignRecipient
-        if campaign_recipient_id:
-            await db.execute(
-                update(CampaignRecipient)
-                .where(CampaignRecipient.id == campaign_recipient_id)
-                .values(status=CampaignRecipientStatus.SENT.value)
+        try:
+            res = await provider.send(
+                to=lead.email,
+                subject=email_msg.subject,
+                text_body=final_text,
+                html_body=final_html,
             )
+            provider_message_id = res.get("providerMessageId")
 
-        # 7. Update Lead
-        lead.crm_status = CrmStatus.CONTACTED.value
-        lead.last_contacted_at = datetime.now(timezone.utc)
+            # 5. Update EmailMessage
+            email_msg.status = EmailStatus.SENT.value
+            email_msg.provider_message_id = provider_message_id
+            email_msg.sent_at = datetime.now(timezone.utc)
 
-        await db.commit()
+            # 6. Update CampaignRecipient
+            if campaign_recipient_id:
+                await db.execute(
+                    update(CampaignRecipient)
+                    .where(CampaignRecipient.id == campaign_recipient_id)
+                    .values(status=CampaignRecipientStatus.SENT.value)
+                )
 
-    logger.info(f"Email successfully sent to {lead.email} via Resend ID: {provider_message_id}")
-    return {"success": True, "providerMessageId": provider_message_id}
+            # 7. Update Lead
+            lead.crm_status = CrmStatus.CONTACTED.value
+            lead.last_contacted_at = datetime.now(timezone.utc)
+
+            await db.commit()
+            logger.info(f"Email successfully sent to {lead.email} via Resend ID: {provider_message_id}")
+            return {"success": True, "providerMessageId": provider_message_id}
+
+        except Exception as e:
+            logger.error(f"Failed to send email {email_message_id} to {lead.email}: {e}")
+            email_msg.status = EmailStatus.FAILED.value
+            if campaign_recipient_id:
+                await db.execute(
+                    update(CampaignRecipient)
+                    .where(CampaignRecipient.id == campaign_recipient_id)
+                    .values(status=CampaignRecipientStatus.FAILED.value)
+                )
+            await db.commit()
+            return {"success": False, "error": str(e)}
 
 
 async def send_reply(ctx: dict, email_message_id: str, conversation_id: str, lead_id: str) -> dict:
