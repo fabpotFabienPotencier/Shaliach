@@ -42,13 +42,18 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
         )
         await db.commit()
 
-        # Load suppression set into memory for fast lookup
+        # Load suppression set and existing database emails into memory for fast lookup
         supp_result = await db.execute(select(SuppressionEntry.normalized_email))
         suppression_set = set(supp_result.scalars().all())
 
-    # Download CSV from R2
+        existing_result = await db.execute(select(Lead.normalized_email))
+        existing_email_set = set(existing_result.scalars().all())
+
+    # Download CSV from R2 or fallback Redis storage
     storage = get_storage()
     file_bytes = storage.download_file(file_key)
+    if isinstance(file_bytes, str):
+        file_bytes = file_bytes.encode("utf-8")
     if not file_bytes:
         logger.error(f"File {file_key} could not be downloaded from storage")
         async with async_session_factory() as db:
@@ -134,15 +139,15 @@ async def process_csv(ctx: dict, import_job_id: str, file_key: str, column_mappi
                 )
                 continue
 
-            # 3. Duplicate check
-            if normalized in imported_email_set:
+            # 3. Duplicate check (both within current CSV and against existing database leads)
+            if normalized in imported_email_set or normalized in existing_email_set:
                 duplicate_count += 1
                 rows_to_insert.append(
                     ImportRow(
                         import_job_id=import_job_id,
                         row_number=total_rows,
                         status=ValidationStatus.DUPLICATE.value,
-                        error_message="Duplicate email in file",
+                        error_message="Duplicate email (already in database or file)",
                         raw_data=row,
                     )
                 )

@@ -39,9 +39,15 @@ class StorageService:
             return None
 
     def upload_file(self, key: str, body: bytes, content_type: str = "application/octet-stream") -> str:
-        """Upload a file to R2 storage."""
+        """Upload a file to R2 storage (or fallback to Redis cache if R2 not configured)."""
         if not self._s3:
-            logger.warning(f"R2 storage mock upload: {key} ({len(body)} bytes)")
+            try:
+                import redis
+                r = redis.from_url(self.settings.REDIS_URL)
+                r.set(f"storage:{key}", body, ex=7 * 86400)
+                logger.info(f"R2 not configured — saved {key} ({len(body)} bytes) to Redis storage")
+            except Exception as e:
+                logger.warning(f"Failed to store {key} in Redis storage: {e}")
             return key
         try:
             self._s3.put_object(
@@ -57,9 +63,17 @@ class StorageService:
             raise
 
     def download_file(self, key: str) -> bytes | None:
-        """Download a file from R2 as bytes."""
+        """Download a file from R2 as bytes (or fallback to Redis cache)."""
         if not self._s3:
-            logger.warning(f"R2 storage mock download: {key}")
+            try:
+                import redis
+                r = redis.from_url(self.settings.REDIS_URL)
+                data = r.get(f"storage:{key}")
+                if data:
+                    logger.info(f"Retrieved {key} from Redis storage ({len(data)} bytes)")
+                    return data
+            except Exception as e:
+                logger.warning(f"Failed to retrieve {key} from Redis storage: {e}")
             return None
         try:
             response = self._s3.get_object(Bucket=self.settings.R2_BUCKET, Key=key)
