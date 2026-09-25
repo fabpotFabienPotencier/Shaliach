@@ -54,11 +54,11 @@ async def get_current_user(
     user_id = cached_user_id.decode("utf-8") if isinstance(cached_user_id, bytes) else str(cached_user_id)
 
     # Find active user in Postgres
-    stmt = select(User).where(User.id == user_id, User.is_active.is_(True))
+    stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user:
+    if not user or not user.is_active:
         raise AuthenticationError(
             code=ErrorCode.UNAUTHORIZED,
             message="User account is inactive or not found",
@@ -82,8 +82,11 @@ async def get_optional_user(
             return None
 
         user_id = cached_user_id.decode("utf-8") if isinstance(cached_user_id, bytes) else str(cached_user_id)
-        stmt = select(User).where(User.id == user_id, User.is_active.is_(True))
+        stmt = select(User).where(User.id == user_id)
         result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        if not user or not user.is_active:
+            return None
+        return user
     except Exception:
         return None

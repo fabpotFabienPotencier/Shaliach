@@ -46,6 +46,14 @@ class Lead(Base):
     def follow_up_date(self, val: datetime | None):
         pass
 
+    @property
+    def validation_confidence(self) -> float | None:
+        return 1.0 if self.validation_status == "VALID" else 0.5 if self.validation_status == "RISKY" else 0.0
+
+    @validation_confidence.setter
+    def validation_confidence(self, val: float | None):
+        pass
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
