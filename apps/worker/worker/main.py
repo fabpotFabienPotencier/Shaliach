@@ -62,20 +62,23 @@ async def _recover_stuck_imports():
     try:
         async with async_session_factory() as db:
             result = await db.execute(
-                select(ImportJob).where(ImportJob.status == ImportJobStatus.PENDING.value)
+                select(ImportJob).where(
+                    ImportJob.status.in_([ImportJobStatus.PENDING.value, ImportJobStatus.PROCESSING.value])
+                )
             )
             pending_jobs = result.scalars().all()
             for job in pending_jobs:
-                logger.info(f"Found pending import job {job.id}. Starting processing...")
-                asyncio.create_task(
-                    process_csv(
+                logger.info(f"Found pending/interrupted import job {job.id}. Starting processing...")
+                try:
+                    await process_csv(
                         ctx={},
                         import_job_id=job.id,
                         file_key=job.r2_key,
                         column_mapping=job.column_mapping or {},
                         lead_list_id=job.lead_list_id,
                     )
-                )
+                except Exception as job_err:
+                    logger.error(f"Error processing recovered job {job.id}: {job_err}")
     except Exception as e:
         logger.error(f"Error in automatic import recovery: {e}")
 
