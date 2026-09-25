@@ -3,7 +3,21 @@ Shaliach AI — Error Codes & Exception Classes.
 Replaces packages/shared/src/errors/.
 """
 
-from fastapi import HTTPException
+try:
+    from fastapi import HTTPException
+except ImportError:
+    class HTTPException(Exception):  # type: ignore
+        def __init__(
+            self,
+            status_code: int = 500,
+            detail: any = None,
+            headers: dict | None = None,
+        ):
+            self.status_code = status_code
+            self.detail = detail
+            self.headers = headers
+            super().__init__(str(detail))
+
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -49,6 +49,36 @@ async def startup(ctx: dict):
     _heartbeat_task = asyncio.create_task(heartbeat_loop())
     logger.info("Background heartbeat active (every 15s)")
 
+    # Recover any imports left PENDING while worker was restarting/down
+    asyncio.create_task(_recover_stuck_imports())
+
+
+async def _recover_stuck_imports():
+    await asyncio.sleep(3)
+    from app.database import async_session_factory
+    from app.models.import_job import ImportJob
+    from app.enums import ImportJobStatus
+    from sqlalchemy import select
+    try:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(ImportJob).where(ImportJob.status == ImportJobStatus.PENDING.value)
+            )
+            pending_jobs = result.scalars().all()
+            for job in pending_jobs:
+                logger.info(f"Found pending import job {job.id}. Starting processing...")
+                asyncio.create_task(
+                    process_csv(
+                        ctx={},
+                        import_job_id=job.id,
+                        file_key=job.r2_key,
+                        column_mapping=job.column_mapping or {},
+                        lead_list_id=job.lead_list_id,
+                    )
+                )
+    except Exception as e:
+        logger.error(f"Error in automatic import recovery: {e}")
+
 
 async def shutdown(ctx: dict):
     global _heartbeat_task
