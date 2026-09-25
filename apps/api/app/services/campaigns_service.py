@@ -161,6 +161,15 @@ class CampaignsService:
             for lid in result.scalars().all():
                 lead_ids_set.add(lid)
 
+        # Fallback: if no specific leads or lead lists were provided, automatically include all available VALID/RISKY leads
+        if not lead_ids_set:
+            all_valid_stmt = select(Lead.id).where(
+                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+            )
+            result = await self.db.execute(all_valid_stmt)
+            for lid in result.scalars().all():
+                lead_ids_set.add(lid)
+
         target_lead_ids = list(lead_ids_set)
 
         # Get default sender profile if not provided
@@ -286,6 +295,28 @@ class CampaignsService:
         result = await self.db.execute(rec_stmt)
         pending_recipients = result.scalars().all()
 
+        # If campaign has no pending recipients, check if it has any recipients at all
+        if not pending_recipients:
+            count_stmt = select(func.count(CampaignRecipient.id)).where(CampaignRecipient.campaign_id == campaign_id)
+            total_recs = (await self.db.execute(count_stmt)).scalar() or 0
+            if total_recs == 0:
+                stmt_leads = select(Lead.id).where(
+                    Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value])
+                )
+                val_lead_ids = (await self.db.execute(stmt_leads)).scalars().all()
+                if val_lead_ids:
+                    for lid in val_lead_ids:
+                        rec = CampaignRecipient(
+                            campaign_id=campaign_id,
+                            lead_id=lid,
+                            status=CampaignRecipientStatus.PENDING.value,
+                        )
+                        self.db.add(rec)
+                    await self.db.commit()
+                    # Re-fetch pending recipients
+                    result = await self.db.execute(rec_stmt)
+                    pending_recipients = result.scalars().all()
+
         prompt_guide = getattr(campaign, "prompt_guidelines", None) or getattr(campaign, "ai_prompt_notes", None)
 
         try:
@@ -332,6 +363,7 @@ class CampaignsService:
             "RESUME": CampaignStatus.RUNNING.value,
             "PAUSE": CampaignStatus.PAUSED.value,
             "CANCEL": CampaignStatus.CANCELLED.value,
+            "RESET": CampaignStatus.DRAFT.value,
         }
         if action in status_map:
             campaign.status = status_map[action]
@@ -352,3 +384,24 @@ class CampaignsService:
         )
 
         return await self.get_campaign_by_id(campaign_id)
+
+    async def delete_campaign(self, campaign_id: str, user_id: str | None = None) -> dict:
+        stmt = select(Campaign).where(Campaign.id == campaign_id)
+        result = await self.db.execute(stmt)
+        campaign = result.scalar_one_or_none()
+        if not campaign:
+            raise NotFoundError("Campaign", campaign_id)
+
+        from sqlalchemy import delete
+        await self.db.execute(delete(CampaignRecipient).where(CampaignRecipient.campaign_id == campaign_id))
+        await self.db.execute(delete(Campaign).where(Campaign.id == campaign_id))
+        await self.db.commit()
+
+        await self.audit.log(
+            action="DELETE_CAMPAIGN",
+            entity_type="Campaign",
+            entity_id=campaign_id,
+            user_id=user_id,
+        )
+
+        return {"success": True, "message": "Campaign deleted"}

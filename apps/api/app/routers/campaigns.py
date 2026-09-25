@@ -64,3 +64,13 @@ async def handle_campaign_action(
     current_user: User = Depends(get_current_user),
 ):
     return await service.handle_status_action(campaign_id, dto, current_user.id)
+
+
+@router.delete("/{campaign_id}")
+async def delete_campaign(
+    campaign_id: str,
+    service: CampaignsService = Depends(get_campaigns_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.delete_campaign(campaign_id, current_user.id)
+

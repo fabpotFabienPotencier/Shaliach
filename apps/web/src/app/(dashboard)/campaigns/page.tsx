@@ -28,6 +28,7 @@ import {
   CheckSquare,
   Users,
   Settings2,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -49,6 +50,18 @@ export default function CampaignsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => apiFetch('/api/campaigns'),
+    refetchInterval: (query: any) =>
+      query.state.data?.items?.some((c: any) => c.status === 'GENERATING') ? 4000 : false,
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/campaigns/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    },
   });
 
   const createCampaignMutation = useMutation({
@@ -137,7 +150,7 @@ export default function CampaignsPage() {
     {
       header: 'Controls',
       cell: (campaign) => (
-        <div className="flex space-x-1.5">
+        <div className="flex items-center space-x-1.5">
           {campaign.status === 'DRAFT' && campaign.mode === 'AI_GENERATED' && (
             <Button
               variant="outline"
@@ -151,9 +164,27 @@ export default function CampaignsPage() {
             </Button>
           )}
 
+          {campaign.status === 'GENERATING' && (
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs text-purple-600 flex items-center font-medium">
+                <Sparkles className="h-3 w-3 mr-1 animate-spin" />
+                Generating...
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => actionMutation.mutate({ id: campaign.id, action: 'RESET' })}
+                className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+                title="Reset status back to Draft"
+              >
+                Reset
+              </Button>
+            </div>
+          )}
+
           {campaign.status === 'READY_FOR_REVIEW' && (
             <Link href="/approval">
-              <Button size="sm" className="h-7 text-xs">
+              <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white">
                 <CheckSquare className="h-3 w-3 mr-1" />
                 Review Queue
               </Button>
@@ -182,6 +213,21 @@ export default function CampaignsPage() {
               Resume
             </Button>
           )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (confirm(`Delete campaign "${campaign.name}"?`)) {
+                deleteCampaignMutation.mutate(campaign.id);
+              }
+            }}
+            className="h-7 px-2 text-muted-foreground hover:text-destructive"
+            title="Delete campaign"
+            disabled={deleteCampaignMutation.isPending}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       ),
     },

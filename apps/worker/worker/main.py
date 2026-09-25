@@ -51,6 +51,68 @@ async def startup(ctx: dict):
 
     # Recover any imports left PENDING while worker was restarting/down
     asyncio.create_task(_recover_stuck_imports())
+    # Recover any campaigns left in GENERATING state
+    asyncio.create_task(_recover_stuck_campaigns())
+
+
+async def _recover_stuck_campaigns():
+    await asyncio.sleep(5)
+    from app.database import async_session_factory
+    from app.models.campaign import Campaign, CampaignRecipient
+    from app.models.lead import Lead
+    from app.enums import CampaignStatus, CampaignRecipientStatus, ValidationStatus
+    from sqlalchemy import select
+    from app.queue import get_queue
+    try:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Campaign).where(Campaign.status == CampaignStatus.GENERATING.value)
+            )
+            generating_campaigns = result.scalars().all()
+            for c in generating_campaigns:
+                # Check recipients
+                recs_res = await db.execute(
+                    select(CampaignRecipient).where(CampaignRecipient.campaign_id == c.id)
+                )
+                recs = recs_res.scalars().all()
+                if not recs:
+                    # Attach all valid leads
+                    leads_res = await db.execute(
+                        select(Lead.id).where(Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]))
+                    )
+                    lead_ids = leads_res.scalars().all()
+                    if lead_ids:
+                        for lid in lead_ids:
+                            db.add(CampaignRecipient(campaign_id=c.id, lead_id=lid, status=CampaignRecipientStatus.PENDING.value))
+                        await db.commit()
+                        logger.info(f"Attached {len(lead_ids)} leads to campaign {c.id}")
+
+                # Check if there are pending recipients that need generation
+                pending_res = await db.execute(
+                    select(CampaignRecipient).where(
+                        CampaignRecipient.campaign_id == c.id,
+                        CampaignRecipient.status == CampaignRecipientStatus.PENDING.value,
+                    )
+                )
+                pending = pending_res.scalars().all()
+                if pending:
+                    queue = await get_queue()
+                    prompt_guide = getattr(c, "prompt_guidelines", None) or getattr(c, "ai_prompt_notes", None)
+                    for r in pending:
+                        await queue.enqueue_job(
+                            "generate_outreach",
+                            campaign_id=c.id,
+                            recipient_id=r.id,
+                            lead_id=r.lead_id,
+                            prompt_guidelines=prompt_guide,
+                            _job_id=f"ai-gen-{r.id}",
+                        )
+                    logger.info(f"Enqueued {len(pending)} AI generation tasks for campaign {c.id}")
+                elif not recs and not pending:
+                    c.status = CampaignStatus.DRAFT.value
+                    await db.commit()
+    except Exception as e:
+        logger.error(f"Error recovering generating campaigns: {e}")
 
 
 async def _recover_stuck_imports():
