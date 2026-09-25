@@ -56,19 +56,27 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Idempotently ensure campaigns table columns exist even if migrated from Prisma
-        try:
-            await conn.execute(text("""
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS prompt_guidelines TEXT;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_subject VARCHAR;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_body_text TEXT;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_body_html TEXT;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
-                ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
-            """))
-        except Exception as e:
-            logger.warning(f"Could not verify/add campaigns columns: {e}")
+        # Idempotently ensure campaigns & leads table columns exist even if migrated from Prisma
+        column_migrations = [
+            ("campaigns", "prompt_guidelines", "TEXT"),
+            ("campaigns", "template_subject", "VARCHAR"),
+            ("campaigns", "template_body_text", "TEXT"),
+            ("campaigns", "template_body_html", "TEXT"),
+            ("campaigns", "scheduled_at", "TIMESTAMPTZ"),
+            ("campaigns", "started_at", "TIMESTAMPTZ"),
+            ("campaigns", "completed_at", "TIMESTAMPTZ"),
+            ("leads", "normalized_email", "VARCHAR"),
+            ("leads", "source", "VARCHAR"),
+            ("leads", "last_reply_at", "TIMESTAMPTZ"),
+            ("leads", "expected_revenue", "NUMERIC(12, 2) DEFAULT 0"),
+            ("leads", "confirmed_revenue", "NUMERIC(12, 2) DEFAULT 0"),
+            ("leads", "follow_up_date", "TIMESTAMPTZ"),
+        ]
+        for tbl, col, col_type in column_migrations:
+            try:
+                await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            except Exception as e:
+                logger.warning(f"Could not add column {tbl}.{col}: {e}")
     logger.info("Database tables verified/created successfully.")
 
     async with async_session_factory() as session:
