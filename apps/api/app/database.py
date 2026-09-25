@@ -54,29 +54,36 @@ async def init_db() -> None:
 
     logger = logging.getLogger("shaliach.db")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Idempotently ensure campaigns & leads table columns exist even if migrated from Prisma
-        column_migrations = [
-            ("campaigns", "prompt_guidelines", "TEXT"),
-            ("campaigns", "template_subject", "VARCHAR"),
-            ("campaigns", "template_body_text", "TEXT"),
-            ("campaigns", "template_body_html", "TEXT"),
-            ("campaigns", "scheduled_at", "TIMESTAMPTZ"),
-            ("campaigns", "started_at", "TIMESTAMPTZ"),
-            ("campaigns", "completed_at", "TIMESTAMPTZ"),
-            ("leads", "normalized_email", "VARCHAR"),
-            ("leads", "source", "VARCHAR"),
-            ("leads", "last_reply_at", "TIMESTAMPTZ"),
-            ("leads", "expected_revenue", "NUMERIC(12, 2) DEFAULT 0"),
-            ("leads", "confirmed_revenue", "NUMERIC(12, 2) DEFAULT 0"),
-            ("leads", "follow_up_date", "TIMESTAMPTZ"),
-        ]
-        for tbl, col, col_type in column_migrations:
-            try:
-                await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-            except Exception as e:
-                logger.warning(f"Could not add column {tbl}.{col}: {e}")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        logger.warning(f"Metadata create_all notice: {e}")
+
+    # Idempotently ensure campaigns & leads table columns exist using autocommit connections
+    column_migrations = [
+        ("campaigns", "prompt_guidelines", "TEXT"),
+        ("campaigns", "template_subject", "VARCHAR"),
+        ("campaigns", "template_body_text", "TEXT"),
+        ("campaigns", "template_body_html", "TEXT"),
+        ("campaigns", "scheduled_at", "TIMESTAMPTZ"),
+        ("campaigns", "started_at", "TIMESTAMPTZ"),
+        ("campaigns", "completed_at", "TIMESTAMPTZ"),
+        ("leads", "normalized_email", "VARCHAR"),
+        ("leads", "source", "VARCHAR"),
+        ("leads", "last_reply_at", "TIMESTAMPTZ"),
+        ("leads", "expected_revenue", "NUMERIC(12, 2) DEFAULT 0"),
+        ("leads", "confirmed_revenue", "NUMERIC(12, 2) DEFAULT 0"),
+        ("leads", "follow_up_date", "TIMESTAMPTZ"),
+    ]
+    for tbl, col, col_type in column_migrations:
+        try:
+            async with engine.connect() as conn:
+                conn_auto = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn_auto.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+        except Exception as e:
+            logger.warning(f"Column migration {tbl}.{col} skipped: {e}")
+
     logger.info("Database tables verified/created successfully.")
 
     async with async_session_factory() as session:
