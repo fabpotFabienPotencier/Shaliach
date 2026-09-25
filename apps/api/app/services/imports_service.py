@@ -174,7 +174,7 @@ class ImportsService:
             select(ImportRow)
             .where(
                 ImportRow.import_job_id == job_id,
-                ImportRow.validation_status.in_(["INVALID", "RISKY", "DUPLICATE", "SUPPRESSED"]),
+                ImportRow.status.in_(["INVALID", "RISKY", "DUPLICATE", "SUPPRESSED"]),
             )
             .order_by(ImportRow.row_number.asc())
         )
@@ -187,11 +187,12 @@ class ImportsService:
         writer.writeheader()
 
         for r in rows:
+            raw_email = r.raw_data.get("email") if isinstance(r.raw_data, dict) else ""
             writer.writerow({
                 "Row Number": r.row_number,
-                "Email": sanitize_csv_field(r.email),
-                "Status": sanitize_csv_field(r.validation_status),
-                "Error Reason": sanitize_csv_field(r.error_message),
+                "Email": sanitize_csv_field(raw_email or ""),
+                "Status": sanitize_csv_field(r.status),
+                "Error Reason": sanitize_csv_field(r.error_message or ""),
             })
 
         return output.getvalue()

@@ -1,6 +1,7 @@
 """Campaigns service."""
 
 import logging
+from datetime import datetime, timezone
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -43,6 +44,13 @@ class CampaignsService:
         items = []
         for c in campaigns:
             recipient_count = len(c.recipients) if c.recipients else 0
+            prompt_guide = getattr(c, "prompt_guidelines", None) or getattr(c, "ai_prompt_notes", None)
+            subj = getattr(c, "template_subject", None) or getattr(c, "subject_template", None)
+            body_txt = getattr(c, "template_body_text", None) or getattr(c, "body_template", None)
+            sched = getattr(c, "scheduled_at", None) or getattr(c, "scheduled_start_date", None)
+            start_dt = getattr(c, "started_at", None)
+            comp_dt = getattr(c, "completed_at", None)
+
             items.append({
                 "id": c.id,
                 "name": c.name,
@@ -50,14 +58,14 @@ class CampaignsService:
                 "mode": c.mode,
                 "status": c.status,
                 "dailySendLimit": c.daily_send_limit,
-                "promptGuidelines": c.prompt_guidelines,
-                "templateSubject": c.template_subject,
-                "templateBodyText": c.template_body_text,
-                "templateBodyHtml": c.template_body_html,
-                "scheduledAt": c.scheduled_at.isoformat() if c.scheduled_at else None,
-                "startedAt": c.started_at.isoformat() if c.started_at else None,
-                "completedAt": c.completed_at.isoformat() if c.completed_at else None,
-                "createdAt": c.created_at.isoformat() if c.created_at else None,
+                "promptGuidelines": prompt_guide,
+                "templateSubject": subj,
+                "templateBodyText": body_txt,
+                "templateBodyHtml": getattr(c, "template_body_html", None),
+                "scheduledAt": sched.isoformat() if sched else None,
+                "startedAt": start_dt.isoformat() if start_dt else None,
+                "completedAt": comp_dt.isoformat() if comp_dt else None,
+                "createdAt": c.created_at.isoformat() if getattr(c, "created_at", None) else None,
                 "senderProfile": {
                     "id": c.sender_profile.id,
                     "name": c.sender_profile.name,
@@ -65,6 +73,7 @@ class CampaignsService:
                 } if c.sender_profile else None,
                 "_count": {
                     "recipients": recipient_count,
+                    "emailMessages": 0,
                 },
             })
 
@@ -105,6 +114,13 @@ class CampaignsService:
             for r in (c.recipients[:50] if c.recipients else [])
         ]
 
+        prompt_guide = getattr(c, "prompt_guidelines", None) or getattr(c, "ai_prompt_notes", None)
+        subj = getattr(c, "template_subject", None) or getattr(c, "subject_template", None)
+        body_txt = getattr(c, "template_body_text", None) or getattr(c, "body_template", None)
+        sched = getattr(c, "scheduled_at", None) or getattr(c, "scheduled_start_date", None)
+        start_dt = getattr(c, "started_at", None)
+        comp_dt = getattr(c, "completed_at", None)
+
         return {
             "id": c.id,
             "name": c.name,
@@ -112,14 +128,14 @@ class CampaignsService:
             "mode": c.mode,
             "status": c.status,
             "dailySendLimit": c.daily_send_limit,
-            "promptGuidelines": c.prompt_guidelines,
-            "templateSubject": c.template_subject,
-            "templateBodyText": c.template_body_text,
-            "templateBodyHtml": c.template_body_html,
-            "scheduledAt": c.scheduled_at.isoformat() if c.scheduled_at else None,
-            "startedAt": c.started_at.isoformat() if c.started_at else None,
-            "completedAt": c.completed_at.isoformat() if c.completed_at else None,
-            "createdAt": c.created_at.isoformat() if c.created_at else None,
+            "promptGuidelines": prompt_guide,
+            "templateSubject": subj,
+            "templateBodyText": body_txt,
+            "templateBodyHtml": getattr(c, "template_body_html", None),
+            "scheduledAt": sched.isoformat() if sched else None,
+            "startedAt": start_dt.isoformat() if start_dt else None,
+            "completedAt": comp_dt.isoformat() if comp_dt else None,
+            "createdAt": c.created_at.isoformat() if getattr(c, "created_at", None) else None,
             "senderProfile": {
                 "id": c.sender_profile.id,
                 "name": c.sender_profile.name,
@@ -128,6 +144,7 @@ class CampaignsService:
             "recipients": recipients,
             "_count": {
                 "recipients": len(c.recipients) if c.recipients else 0,
+                "emailMessages": 0,
             },
         }
 
@@ -160,8 +177,10 @@ class CampaignsService:
                 from_email="joshua@mail.fixhubtech.com",
                 from_name="Joshua Caleb",
                 reply_to_email="joshua@reply.fixhubtech.com",
+                company_name="FixHubTech",
+                company_website="https://fixhubtech.com",
+                postal_address="",
                 is_default=True,
-                daily_limit=100,
             )
             self.db.add(default_sender)
             await self.db.flush()
@@ -176,11 +195,15 @@ class CampaignsService:
             sender_profile_id=sender_profile_id,
             daily_send_limit=dto.dailySendLimit,
             prompt_guidelines=dto.promptGuidelines,
+            ai_prompt_notes=dto.promptGuidelines,
             template_subject=dto.templateSubject,
+            subject_template=dto.templateSubject,
             template_body_text=dto.templateBodyText,
+            body_template=dto.templateBodyText,
             template_body_html=dto.templateBodyHtml,
             status=CampaignStatus.DRAFT.value,
             scheduled_at=dto.scheduledAt,
+            scheduled_start_date=dto.scheduledAt,
         )
         self.db.add(campaign)
         await self.db.flush()
@@ -251,7 +274,7 @@ class CampaignsService:
         if not campaign:
             raise NotFoundError("Campaign", campaign_id)
 
-        if campaign.mode != CampaignMode.AI.value:
+        if campaign.mode not in (CampaignMode.AI.value, CampaignMode.AI_GENERATED.value, "AI", "AI_GENERATED"):
             raise ValidationError("Campaign is not in AI mode")
 
         campaign.status = CampaignStatus.GENERATING.value
@@ -268,6 +291,8 @@ class CampaignsService:
         result = await self.db.execute(rec_stmt)
         pending_recipients = result.scalars().all()
 
+        prompt_guide = getattr(campaign, "prompt_guidelines", None) or getattr(campaign, "ai_prompt_notes", None)
+
         try:
             queue = await get_queue()
             for r in pending_recipients:
@@ -276,7 +301,7 @@ class CampaignsService:
                     campaign_id=campaign_id,
                     recipient_id=r.id,
                     lead_id=r.lead_id,
-                    prompt_guidelines=campaign.prompt_guidelines,
+                    prompt_guidelines=prompt_guide,
                     _job_id=f"ai-gen-{r.id}",
                 )
         except Exception as e:
@@ -315,6 +340,12 @@ class CampaignsService:
         }
         if action in status_map:
             campaign.status = status_map[action]
+            if action in ("START", "RESUME"):
+                if hasattr(campaign, "started_at") and not getattr(campaign, "started_at", None):
+                    campaign.started_at = datetime.now(timezone.utc)
+            elif action in ("CANCEL", "COMPLETED"):
+                if hasattr(campaign, "completed_at") and not getattr(campaign, "completed_at", None):
+                    campaign.completed_at = datetime.now(timezone.utc)
 
         await self.db.commit()
 

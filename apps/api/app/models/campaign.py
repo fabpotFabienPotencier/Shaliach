@@ -36,6 +36,8 @@ class Campaign(Base):
     sending_timezone: Mapped[str] = mapped_column(String, nullable=False, server_default="America/New_York")
     scheduled_start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scheduled_at: Mapped[datetime | None] = mapped_column("scheduled_at", DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column("started_at", DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column("completed_at", DateTime(timezone=True), nullable=True)
 
     enable_follow_up: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     follow_up_delay_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="3")
