@@ -23,7 +23,6 @@ class Conversation(Base):
     # Relationships
     lead = relationship("Lead", back_populates="conversations", lazy="selectin")
     inbound_messages = relationship("InboundMessage", back_populates="conversation", lazy="selectin", cascade="all, delete-orphan")
-    email_messages = relationship("EmailMessage", back_populates="conversation", lazy="selectin")
 
     __table_args__ = (
         Index("ix_conversations_lead_id", "lead_id"),

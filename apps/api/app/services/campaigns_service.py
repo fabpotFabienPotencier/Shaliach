@@ -193,16 +193,11 @@ class CampaignsService:
             description=dto.description,
             mode=mode_val,
             sender_profile_id=sender_profile_id,
-            daily_send_limit=dto.dailySendLimit,
-            prompt_guidelines=dto.promptGuidelines,
+            daily_send_limit=dto.dailySendLimit or 50,
             ai_prompt_notes=dto.promptGuidelines,
-            template_subject=dto.templateSubject,
             subject_template=dto.templateSubject,
-            template_body_text=dto.templateBodyText,
             body_template=dto.templateBodyText,
-            template_body_html=dto.templateBodyHtml,
             status=CampaignStatus.DRAFT.value,
-            scheduled_at=dto.scheduledAt,
             scheduled_start_date=dto.scheduledAt,
         )
         self.db.add(campaign)

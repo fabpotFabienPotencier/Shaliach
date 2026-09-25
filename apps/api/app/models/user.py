@@ -16,9 +16,16 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    @property
+    def is_active(self) -> bool:
+        return True
+
+    @is_active.setter
+    def is_active(self, val: bool):
+        pass
 
     # Relationships
     audit_logs = relationship("AuditLog", back_populates="user", lazy="selectin")

@@ -8,11 +8,11 @@ from ..enums import CampaignMode
 
 
 class CreateCampaignSchema(BaseModel):
-    name: str = Field(min_length=2, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
     description: str | None = None
-    mode: CampaignMode | str = CampaignMode.AI_GENERATED
+    mode: str | None = "AI_GENERATED"
     senderProfileId: str | None = None
-    dailySendLimit: int = Field(default=50, ge=1, le=2000)
+    dailySendLimit: int | None = 50
     promptGuidelines: str | None = None
     templateSubject: str | None = None
     templateBodyText: str | None = None

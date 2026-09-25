@@ -14,7 +14,6 @@ class EmailMessage(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id: Mapped[str] = mapped_column(String, ForeignKey("leads.id"), nullable=False)
-    conversation_id: Mapped[str | None] = mapped_column(String, ForeignKey("conversations.id"), nullable=True)
 
     from_email: Mapped[str] = mapped_column(String, nullable=False, server_default="")
     from_name: Mapped[str] = mapped_column(String, nullable=False, server_default="")
@@ -38,12 +37,20 @@ class EmailMessage(Base):
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # conversation_id does not exist on email_messages in Prisma schema
+    @property
+    def conversation_id(self) -> str | None:
+        return None
+
+    @conversation_id.setter
+    def conversation_id(self, val: str | None):
+        pass
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     lead = relationship("Lead", back_populates="email_messages", lazy="selectin")
-    conversation = relationship("Conversation", back_populates="email_messages", lazy="selectin")
     events = relationship("EmailEvent", back_populates="email_message", lazy="selectin", cascade="all, delete-orphan")
 
     __table_args__ = (

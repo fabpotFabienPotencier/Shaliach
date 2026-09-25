@@ -20,24 +20,65 @@ class Campaign(Base):
 
     sender_profile_id: Mapped[str] = mapped_column(String, ForeignKey("sender_profiles.id"), nullable=False)
 
-    # Template fields (Prisma uses different names: subjectTemplate vs templateSubject)
+    # Real columns that match PostgreSQL table created by Prisma
     subject_template: Mapped[str | None] = mapped_column(String, nullable=True)
     body_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_prompt_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Also support the column names used by campaigns.service.ts
-    prompt_guidelines: Mapped[str | None] = mapped_column("prompt_guidelines", Text, nullable=True)
-    template_subject: Mapped[str | None] = mapped_column("template_subject", String, nullable=True)
-    template_body_text: Mapped[str | None] = mapped_column("template_body_text", Text, nullable=True)
-    template_body_html: Mapped[str | None] = mapped_column("template_body_html", Text, nullable=True)
 
     daily_send_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default="200")
     sending_window_start: Mapped[str | None] = mapped_column(String, nullable=True)
     sending_window_end: Mapped[str | None] = mapped_column(String, nullable=True)
     sending_timezone: Mapped[str] = mapped_column(String, nullable=False, server_default="America/New_York")
     scheduled_start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    scheduled_at: Mapped[datetime | None] = mapped_column("scheduled_at", DateTime(timezone=True), nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column("started_at", DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column("completed_at", DateTime(timezone=True), nullable=True)
+
+    # Aliases/properties for frontend & service compatibility
+    @property
+    def prompt_guidelines(self) -> str | None:
+        return self.ai_prompt_notes
+
+    @prompt_guidelines.setter
+    def prompt_guidelines(self, val: str | None):
+        self.ai_prompt_notes = val
+
+    @property
+    def template_subject(self) -> str | None:
+        return self.subject_template
+
+    @template_subject.setter
+    def template_subject(self, val: str | None):
+        self.subject_template = val
+
+    @property
+    def template_body_text(self) -> str | None:
+        return self.body_template
+
+    @template_body_text.setter
+    def template_body_text(self, val: str | None):
+        self.body_template = val
+
+    @property
+    def template_body_html(self) -> str | None:
+        return f"<p>{self.body_template}</p>" if self.body_template else None
+
+    @template_body_html.setter
+    def template_body_html(self, val: str | None):
+        pass
+
+    @property
+    def scheduled_at(self) -> datetime | None:
+        return self.scheduled_start_date
+
+    @scheduled_at.setter
+    def scheduled_at(self, val: datetime | None):
+        self.scheduled_start_date = val
+
+    @property
+    def started_at(self) -> datetime | None:
+        return None
+
+    @property
+    def completed_at(self) -> datetime | None:
+        return None
 
     enable_follow_up: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     follow_up_delay_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="3")

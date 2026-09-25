@@ -14,9 +14,16 @@ class LeadList(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    @property
+    def description(self) -> str | None:
+        return None
+
+    @description.setter
+    def description(self, val: str | None):
+        pass
 
     # Relationships
     leads = relationship("Lead", back_populates="lead_list", lazy="selectin")

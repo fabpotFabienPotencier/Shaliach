@@ -38,7 +38,13 @@ class Lead(Base):
     expected_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0")
     confirmed_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0")
 
-    follow_up_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    @property
+    def follow_up_date(self) -> datetime | None:
+        return None
+
+    @follow_up_date.setter
+    def follow_up_date(self, val: datetime | None):
+        pass
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
