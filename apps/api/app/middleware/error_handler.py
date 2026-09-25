@@ -99,8 +99,8 @@ def register_error_handlers(app: FastAPI) -> None:
             "success": False,
             "statusCode": 500,
             "code": ErrorCode.INTERNAL_ERROR,
-            "message": "An unexpected internal server error occurred",
-            "details": str(exc) if not app.debug else None,
+            "message": str(exc) or "An unexpected internal server error occurred",
+            "details": f"{type(exc).__name__}: {str(exc)}",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": str(request.url.path),
         }
