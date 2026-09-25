@@ -4,6 +4,7 @@ Replaces the Node.js/BullMQ worker cluster with a lightweight, high-performance 
 """
 
 import asyncio
+import secrets
 from datetime import datetime, timezone
 import logging
 from arq import run_worker
@@ -105,7 +106,7 @@ async def _recover_stuck_campaigns():
                             recipient_id=r.id,
                             lead_id=r.lead_id,
                             prompt_guidelines=prompt_guide,
-                            _job_id=f"ai-gen-{r.id}",
+                            _job_id=f"ai-gen-{r.id}-{secrets.token_hex(4)}",
                         )
                     logger.info(f"Enqueued {len(pending)} AI generation tasks for campaign {c.id}")
                 elif not recs and not pending:

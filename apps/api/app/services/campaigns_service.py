@@ -1,6 +1,7 @@
 """Campaigns service."""
 
 import logging
+import secrets
 from datetime import datetime, timezone
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,7 +74,7 @@ class CampaignsService:
                 } if c.sender_profile else None,
                 "_count": {
                     "recipients": recipient_count,
-                    "emailMessages": 0,
+                    "emailMessages": len([r for r in c.recipients if r.email_message_id is not None]) if c.recipients else 0,
                 },
             })
 
@@ -328,7 +329,7 @@ class CampaignsService:
                     recipient_id=r.id,
                     lead_id=r.lead_id,
                     prompt_guidelines=prompt_guide,
-                    _job_id=f"ai-gen-{r.id}",
+                    _job_id=f"ai-gen-{r.id}-{secrets.token_hex(4)}",
                 )
         except Exception as e:
             logger.warning(f"Could not enqueue AI jobs in ARQ: {e}")

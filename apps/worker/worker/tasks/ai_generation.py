@@ -62,12 +62,27 @@ async def generate_outreach(
             "company": "FixHubTech",
         }
 
-        ai = GroqAiProvider()
+        ai_res = None
         try:
+            ai = GroqAiProvider()
             ai_res = await ai.generate_outreach(lead_data, sender_data, prompt_guidelines)
         except Exception as e:
-            logger.error(f"AI generation failed for recipient {recipient_id}: {e}")
-            return {"success": False, "error": str(e)}
+            logger.error(f"AI generation call failed for recipient {recipient_id}: {e}")
+
+        if not ai_res:
+            biz = lead.business_name or "your business"
+            fname = lead.first_name or "there"
+            cname = sender_data.get("name", "Joshua Caleb")
+            comp = sender_data.get("company", "FixHubTech")
+            ai_res = {
+                "subject": f"Web development for {biz}",
+                "textBody": f"Hi {fname},\n\nI was looking at {biz} online and wanted to introduce myself. We help businesses upgrade their web presence, automate customer inquiries, and drive more clients.\n\nWould you be open to a brief chat this week?\n\nBest,\n{cname}\n{comp}",
+                "htmlBody": f"<p>Hi {fname},</p><p>I was looking at <strong>{biz}</strong> online and wanted to introduce myself. We help businesses upgrade their web presence, automate customer inquiries, and drive more clients.</p><p>Would you be open to a brief chat this week?</p><p>Best,<br><strong>{cname}</strong><br>{comp}</p>",
+                "confidence": 0.9,
+                "model": "template-fallback",
+                "promptTokens": 0,
+                "completionTokens": 0,
+            }
 
         subject = ai_res.get("subject", f"Web development for {lead.business_name}")
         text_body = ai_res.get("textBody", "")

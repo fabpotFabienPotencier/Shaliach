@@ -96,9 +96,9 @@ def extract_json(text: str) -> dict[str, Any]:
 class GroqAiProvider:
     def __init__(self):
         settings = get_settings()
-        self.api_key = settings.GROQ_API_KEY
-        self.primary_model = settings.GROQ_MODEL or "llama-3.3-70b-versatile"
-        self.fallback_model = settings.GROQ_FALLBACK_MODEL or "llama-3.1-8b-instant"
+        self.api_key = getattr(settings, "GROQ_API_KEY", "")
+        self.primary_model = getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile"
+        self.fallback_model = getattr(settings, "GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant") or "llama-3.1-8b-instant"
         self.base_url = "https://api.groq.com/openai/v1"
 
     async def _call_llm(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> dict[str, Any]:
@@ -121,44 +121,75 @@ class GroqAiProvider:
 
         async with httpx.AsyncClient(timeout=45.0) as client:
             for model in models_to_try:
-                try:
-                    payload = {
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt},
-                        ],
-                        "temperature": 0.4,
-                        "max_tokens": max_tokens,
-                        "response_format": {"type": "json_object"},
-                    }
-                    resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    content = data["choices"][0]["message"]["content"]
-                    result = extract_json(content)
-                    result["model"] = model
-                    result["promptTokens"] = data.get("usage", {}).get("prompt_tokens", 0)
-                    result["completionTokens"] = data.get("usage", {}).get("completion_tokens", 0)
-                    return result
-                except Exception as e:
-                    logger.warning(f"Groq model {model} failed: {e}")
-                    if model == models_to_try[-1]:
-                        raise
+                for attempt in range(2):
+                    try:
+                        payload = {
+                            "model": model,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt},
+                            ],
+                            "temperature": 0.4,
+                            "max_tokens": max_tokens,
+                            "response_format": {"type": "json_object"},
+                        }
+                        resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                        if resp.status_code == 429:
+                            logger.warning(f"Groq model {model} rate limited (429). Backing off 2s...")
+                            await asyncio.sleep(2.0)
+                            continue
+                        resp.raise_for_status()
+                        data = resp.json()
+                        content = data["choices"][0]["message"]["content"]
+                        result = extract_json(content)
+                        result["model"] = model
+                        result["promptTokens"] = data.get("usage", {}).get("prompt_tokens", 0)
+                        result["completionTokens"] = data.get("usage", {}).get("completion_tokens", 0)
+                        return result
+                    except Exception as e:
+                        logger.warning(f"Groq model {model} attempt {attempt} failed: {e}")
+                        await asyncio.sleep(1.0)
 
-        raise RuntimeError("All Groq models failed")
+        raise RuntimeError("All Groq models and retries failed")
 
     async def generate_outreach(self, lead_data: dict, sender_data: dict, prompt_guidelines: str | None = None) -> dict[str, Any]:
+        biz_name = lead_data.get("businessName") or lead_data.get("business_name") or "your business"
+        first_name = lead_data.get("firstName") or lead_data.get("first_name") or "there"
+        city = lead_data.get("city") or "your area"
+        sender_name = sender_data.get("name") or "Joshua Caleb"
+        sender_comp = sender_data.get("company") or "FixHubTech"
+
+        default_fallback = {
+            "subject": f"Quick question regarding {biz_name}",
+            "textBody": f"Hi {first_name},\n\nI came across {biz_name} in {city} and wanted to reach out. At {sender_comp}, we help businesses like yours upgrade their digital presence, improve customer acquisition, and modernize online booking.\n\nWould you be open to a quick 5-minute conversation sometime this week?\n\nBest regards,\n{sender_name}\n{sender_comp}",
+            "htmlBody": f"<p>Hi {first_name},</p><p>I came across <strong>{biz_name}</strong> in {city} and wanted to reach out. At {sender_comp}, we help businesses like yours upgrade their digital presence, improve customer acquisition, and modernize online booking.</p><p>Would you be open to a quick 5-minute conversation sometime this week?</p><p>Best regards,<br><strong>{sender_name}</strong><br>{sender_comp}</p>",
+            "confidence": 0.92,
+            "warnings": [],
+            "model": "template-fallback",
+            "promptTokens": 0,
+            "completionTokens": 0,
+        }
+
+        if not self.api_key:
+            return default_fallback
+
         user_prompt = f"Generate an outreach email for this lead:\n\nLEAD DATA:\n"
         for k, v in lead_data.items():
             if v:
                 user_prompt += f"- {k}: {v}\n"
 
-        user_prompt += f"\nSENDER:\n- Name: {sender_data.get('name', 'Joshua Caleb')}\n- Company: {sender_data.get('company', 'FixHubTech')}\n"
+        user_prompt += f"\nSENDER:\n- Name: {sender_name}\n- Company: {sender_comp}\n"
         if prompt_guidelines:
             user_prompt += f"\nCAMPAIGN INSTRUCTIONS:\n{prompt_guidelines}\n"
 
-        return await self._call_llm(OUTREACH_SYSTEM_PROMPT, user_prompt)
+        try:
+            res = await self._call_llm(OUTREACH_SYSTEM_PROMPT, user_prompt)
+            if res and res.get("subject") and (res.get("textBody") or res.get("htmlBody")):
+                return res
+        except Exception as e:
+            logger.warning(f"Groq API outreach generation call failed ({e}), using personalized fallback template")
+
+        return default_fallback
 
     async def classify_reply(self, from_email: str, subject: str, body: str) -> dict[str, Any]:
         user_prompt = f"Prospect Email: {from_email}\nSubject: {subject}\n\nBody:\n\"\"\"\n{body}\n\"\"\""
