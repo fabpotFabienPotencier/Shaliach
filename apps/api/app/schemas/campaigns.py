@@ -34,4 +34,4 @@ class UpdateCampaignSchema(BaseModel):
 
 
 class CampaignStatusActionSchema(BaseModel):
-    action: Literal["START", "PAUSE", "RESUME", "CANCEL", "GENERATE_AI"]
+    action: Literal["START", "PAUSE", "RESUME", "CANCEL", "GENERATE_AI", "RESET", "APPROVE_ALL"]
