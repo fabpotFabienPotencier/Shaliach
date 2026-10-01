@@ -358,6 +358,10 @@ class CampaignsService:
         action = dto.action
         if action == "GENERATE_AI":
             return await self.trigger_ai_generation(campaign_id, user_id)
+        if action == "APPROVE_ALL":
+            from .approval_service import ApprovalService
+            await ApprovalService(self.db, self.audit).approve_all(campaign_id=campaign_id, user_id=user_id)
+            return await self.get_campaign_by_id(campaign_id)
 
         status_map = {
             "START": CampaignStatus.RUNNING.value,

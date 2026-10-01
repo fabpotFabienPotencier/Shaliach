@@ -60,6 +60,21 @@ export default function ApprovalQueuePage() {
     },
   });
 
+  const approveAllMutation = useMutation({
+    mutationFn: () =>
+      apiFetch('/api/approval/approve-all', {
+        method: 'POST',
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['approval-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      alert(res.message || 'All outreach emails approved and queued for dispatch!');
+    },
+    onError: (err: any) => {
+      alert(`Approve all failed: ${err.message}`);
+    },
+  });
+
   const editDraftMutation = useMutation({
     mutationFn: ({ id, subject, bodyText }: { id: string; subject: string; bodyText: string }) =>
       apiFetch(`/api/approval/${id}/draft`, {
@@ -196,9 +211,31 @@ export default function ApprovalQueuePage() {
             Outreach Approval Queue
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Strict human review requirement: inspect, refine, and approve Groq AI personalized emails before dispatch.
+            Review drafts individually or approve all at once to launch dispatch immediately.
           </p>
         </div>
+
+        {data?.items && data.items.length > 0 && (
+          <Button
+            size="sm"
+            onClick={() => {
+              if (
+                confirm(
+                  `Approve all ${data.items.length} outreach drafts and dispatch them immediately?`
+                )
+              ) {
+                approveAllMutation.mutate();
+              }
+            }}
+            disabled={approveAllMutation.isPending}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm h-9 px-4"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            {approveAllMutation.isPending
+              ? 'Approving & Launching...'
+              : `Approve All (${data.items.length}) & Send`}
+          </Button>
+        )}
       </div>
 
       {/* Queue Table */}

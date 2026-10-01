@@ -26,6 +26,7 @@ import {
   Pause,
   Sparkles,
   CheckSquare,
+  CheckCircle,
   Users,
   Settings2,
   Trash2,
@@ -183,12 +184,31 @@ export default function CampaignsPage() {
           )}
 
           {campaign.status === 'READY_FOR_REVIEW' && (
-            <Link href="/approval">
-              <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white">
-                <CheckSquare className="h-3 w-3 mr-1" />
-                Review Queue
+            <div className="flex items-center space-x-1.5">
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (
+                    confirm(
+                      `Approve all drafts in "${campaign.name}" and dispatch emails immediately?`
+                    )
+                  ) {
+                    actionMutation.mutate({ id: campaign.id, action: 'APPROVE_ALL' });
+                  }
+                }}
+                disabled={actionMutation.isPending}
+                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              >
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Approve &amp; Send All
               </Button>
-            </Link>
+              <Link href="/approval">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  <CheckSquare className="h-3 w-3 mr-1" />
+                  Review Queue
+                </Button>
+              </Link>
+            </div>
           )}
 
           {campaign.status === 'RUNNING' && (

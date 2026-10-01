@@ -56,3 +56,12 @@ async def bulk_action(
     current_user: User = Depends(get_current_user),
 ):
     return await service.bulk_action(dto, current_user.id)
+
+
+@router.post("/approve-all")
+async def approve_all(
+    campaignId: str | None = None,
+    service: ApprovalService = Depends(get_approval_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.approve_all(campaign_id=campaignId, user_id=current_user.id)

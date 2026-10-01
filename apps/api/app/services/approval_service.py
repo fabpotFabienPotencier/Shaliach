@@ -1,6 +1,7 @@
 """Campaign draft approval service."""
 
 import logging
+import secrets
 from sqlalchemy import select, func, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,7 +11,7 @@ from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..models.suppression import SuppressionEntry
 from ..schemas.approval import EditDraftSchema, ApprovalActionSchema, BulkApprovalActionSchema
-from ..enums import CampaignRecipientStatus, EmailStatus, ValidationStatus, CrmStatus
+from ..enums import CampaignRecipientStatus, EmailStatus, ValidationStatus, CrmStatus, CampaignStatus
 from ..errors import NotFoundError, ValidationError
 from ..queue import get_queue
 from .audit_service import AuditService
@@ -246,4 +247,71 @@ class ApprovalService:
             "success": True,
             "total": len(dto.recipientIds),
             "processed": results,
+        }
+
+    async def approve_all(self, campaign_id: str | None = None, user_id: str | None = None) -> dict:
+        stmt = (
+            select(CampaignRecipient)
+            .options(
+                selectinload(CampaignRecipient.lead),
+                selectinload(CampaignRecipient.email_message),
+                selectinload(CampaignRecipient.campaign),
+            )
+            .where(
+                CampaignRecipient.status.in_([
+                    CampaignRecipientStatus.READY_FOR_REVIEW.value,
+                    CampaignRecipientStatus.PENDING.value,
+                ])
+            )
+        )
+        if campaign_id:
+            stmt = stmt.where(CampaignRecipient.campaign_id == campaign_id)
+
+        result = await self.db.execute(stmt)
+        recipients = result.scalars().all()
+        if not recipients:
+            return {"success": True, "approvedCount": 0, "message": "No pending drafts to approve."}
+
+        queue = await get_queue()
+        approved_count = 0
+
+        for r in recipients:
+            r.status = CampaignRecipientStatus.APPROVED.value
+            if r.email_message:
+                r.email_message.status = EmailStatus.APPROVED.value
+            approved_count += 1
+
+        if campaign_id:
+            await self.db.execute(
+                update(Campaign)
+                .where(Campaign.id == campaign_id)
+                .values(status=CampaignStatus.RUNNING.value)
+            )
+
+        await self.db.commit()
+
+        # Enqueue sends in ARQ
+        for r in recipients:
+            try:
+                await queue.enqueue_job(
+                    "send_email",
+                    campaign_recipient_id=r.id,
+                    email_message_id=r.email_message.id if r.email_message else None,
+                    _job_id=f"send-{r.id}-{secrets.token_hex(4)}",
+                )
+            except Exception as e:
+                logger.warning(f"Could not enqueue send_email for {r.id}: {e}")
+
+        await self.audit.log(
+            action="APPROVE_ALL_OUTREACH",
+            entity_type="CampaignRecipient",
+            entity_id=campaign_id or "ALL",
+            user_id=user_id,
+            metadata={"approvedCount": approved_count},
+        )
+
+        return {
+            "success": True,
+            "approvedCount": approved_count,
+            "message": f"Successfully approved and queued {approved_count} outreach emails for dispatch.",
         }
