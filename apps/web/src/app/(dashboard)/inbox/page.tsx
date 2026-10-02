@@ -50,10 +50,14 @@ export default function InboxPage() {
     if (activeConversation) {
       const latestInbound =
         activeConversation.inboundMessages?.[activeConversation.inboundMessages.length - 1];
-      const draft = latestInbound?.draftReply;
+      const draft =
+        latestInbound?.draftReply ||
+        (typeof latestInbound?.aiDraftReply === 'string' && latestInbound.aiDraftReply.startsWith('{')
+          ? JSON.parse(latestInbound.aiDraftReply)
+          : { textBody: latestInbound?.aiDraftReply });
 
       setReplySubject(draft?.subject || `Re: ${activeConversation.subject}`);
-      setReplyBody(draft?.textBody || '');
+      setReplyBody(draft?.textBody || (typeof draft === 'string' ? draft : ''));
     }
   }, [activeConversation]);
 

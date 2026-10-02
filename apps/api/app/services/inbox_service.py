@@ -84,8 +84,17 @@ class InboxService:
         if not c:
             raise NotFoundError("Conversation", conversation_id)
 
-        inbound = [
-            {
+        inbound = []
+        for msg in c.inbound_messages:
+            parsed_draft = None
+            if msg.ai_draft_reply:
+                try:
+                    import json
+                    parsed_draft = json.loads(msg.ai_draft_reply) if isinstance(msg.ai_draft_reply, str) and msg.ai_draft_reply.startswith("{") else {"subject": f"Re: {msg.subject}", "textBody": msg.ai_draft_reply}
+                except Exception:
+                    parsed_draft = {"subject": f"Re: {msg.subject}", "textBody": msg.ai_draft_reply}
+
+            inbound.append({
                 "id": msg.id,
                 "fromEmail": msg.from_email,
                 "fromName": msg.from_name,
@@ -96,11 +105,10 @@ class InboxService:
                 "classification": msg.classification,
                 "classificationConfidence": msg.classification_confidence,
                 "aiDraftReply": msg.ai_draft_reply,
+                "draftReply": parsed_draft,
                 "aiDraftReplyApproved": msg.ai_draft_reply_approved,
                 "receivedAt": msg.received_at.isoformat() if msg.received_at else None,
-            }
-            for msg in c.inbound_messages
-        ]
+            })
 
         # Get outgoing emails for this lead
         out_stmt = (
