@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import secrets
 import time
 from typing import Any
 from sqlalchemy import select
@@ -121,3 +122,42 @@ class WebhooksService:
 
         logger.info(f"Enqueued webhook event {webhook_event.id} ({event_type})")
         return {"success": True, "eventId": webhook_event.id}
+
+    async def process_inbound_email(
+        self,
+        raw_payload: str | bytes | dict[str, Any],
+    ) -> dict[str, Any]:
+        from .inbound_parser import parse_inbound_email
+        parsed = parse_inbound_email(raw_payload)
+
+        sender_email = parsed.get("from_email")
+        if not sender_email:
+            return {"success": False, "error": "Could not extract sender email from message"}
+
+        subject = parsed.get("subject", "Inbound Message")
+        body_text = parsed.get("text") or parsed.get("html") or ""
+        attachments = parsed.get("attachments", [])
+        from_name = parsed.get("from_name")
+
+        try:
+            queue = await get_queue()
+            await queue.enqueue_job(
+                "process_inbound_reply",
+                recipient_email=sender_email,
+                subject=subject,
+                body=body_text,
+                attachments=attachments,
+                from_name=from_name,
+                _job_id=f"inbound-{secrets.token_hex(8)}",
+            )
+            logger.info(f"Enqueued inbound email from {sender_email} with {len(attachments)} attachment(s)")
+            return {
+                "success": True,
+                "sender": sender_email,
+                "subject": subject,
+                "attachmentCount": len(attachments),
+                "attachments": [{"filename": a["filename"], "url": a.get("url", "")} for a in attachments],
+            }
+        except Exception as e:
+            logger.error(f"Failed to enqueue inbound email: {e}")
+            return {"success": False, "error": str(e)}

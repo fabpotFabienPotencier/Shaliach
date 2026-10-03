@@ -107,6 +107,7 @@ async def send_email(ctx: dict, campaign_recipient_id: str | None = None, email_
                 subject=email_msg.subject,
                 text_body=final_text,
                 html_body=final_html,
+                attachments=getattr(email_msg, "attachments", None) or None,
             )
             provider_message_id = res.get("providerMessageId")
 

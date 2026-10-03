@@ -77,6 +77,8 @@ async def init_db() -> None:
             ("leads", "confirmed_revenue", "NUMERIC(12, 2) DEFAULT 0"),
             ("leads", "follow_up_date", "TIMESTAMPTZ"),
             ("lead_lists", "description", "TEXT"),
+            ("inbound_messages", "attachments", "JSON DEFAULT '[]'::json"),
+            ("email_messages", "attachments", "JSON DEFAULT '[]'::json"),
         ]
         for tbl, col, col_type in column_migrations:
             try:

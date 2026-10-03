@@ -1,9 +1,7 @@
-"""Conversation and InboundMessage models."""
-
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, ForeignKey, Index, func
+from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, JSON, ForeignKey, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -49,6 +47,7 @@ class InboundMessage(Base):
 
     ai_draft_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_draft_reply_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    attachments: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True, server_default="[]")
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -36,6 +36,7 @@ class EmailMessage(Base):
     complained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachments: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True, server_default="[]")
 
     # conversation_id does not exist on email_messages in Prisma schema
     @property

@@ -11,6 +11,7 @@ from ..models.conversation import Conversation, InboundMessage
 from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..models.suppression import SuppressionEntry
+from ..models.sender_profile import SenderProfile
 from ..schemas.inbox import SendReplySchema
 from ..enums import EmailStatus
 from ..errors import NotFoundError, ValidationError, ErrorCode
@@ -107,6 +108,7 @@ class InboxService:
                 "aiDraftReply": msg.ai_draft_reply,
                 "draftReply": parsed_draft,
                 "aiDraftReplyApproved": msg.ai_draft_reply_approved,
+                "attachments": getattr(msg, "attachments", []) or [],
                 "receivedAt": msg.received_at.isoformat() if msg.received_at else None,
             })
 
@@ -126,6 +128,7 @@ class InboxService:
                 "subject": em.subject,
                 "textBody": em.text_body,
                 "htmlBody": em.html_body,
+                "attachments": getattr(em, "attachments", []) or [],
                 "status": em.status,
                 "sentAt": em.sent_at.isoformat() if em.sent_at else None,
                 "createdAt": em.created_at.isoformat() if em.created_at else None,
@@ -170,17 +173,26 @@ class InboxService:
         if supp:
             raise ValidationError("Cannot send reply: prospect email is suppressed")
 
+        # Look up default SenderProfile
+        sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
+        sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+
+        from_email = sender_profile.from_email if sender_profile else "joshua@mail.fixhubtech.com"
+        from_name = sender_profile.from_name if sender_profile else "Joshua Caleb"
+        reply_to_email = sender_profile.reply_to_email if sender_profile else "joshua@reply.fixhubtech.com"
+
         # Create outgoing EmailMessage
         idempotency_key = secrets.token_hex(16)
         email_message = EmailMessage(
             lead_id=c.lead_id,
-            from_email="outreach@fixhubtech.com",
-            from_name="FixHub Tech",
-            reply_to_email="outreach@fixhubtech.com",
+            from_email=from_email,
+            from_name=from_name,
+            reply_to_email=reply_to_email,
             to_email=c.lead.email,
             subject=dto.subject,
             text_body=dto.bodyText,
             html_body=dto.bodyHtml,
+            attachments=dto.attachments or [],
             status=EmailStatus.APPROVED.value,
             idempotency_key=idempotency_key,
         )

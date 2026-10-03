@@ -24,3 +24,23 @@ async def handle_resend_webhook(
     headers = dict(request.headers)
 
     return await service.process_incoming_webhook(raw_payload, parsed_body, headers)
+
+
+@router.post("/inbound")
+async def handle_inbound_email_webhook(
+    request: Request,
+    service: WebhooksService = Depends(get_webhooks_service),
+):
+    """Universal inbound email webhook — accepts raw MIME email or JSON with attachments."""
+    content_type = request.headers.get("content-type", "")
+    body_bytes = await request.body()
+
+    if "application/json" in content_type:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = body_bytes
+    else:
+        payload = body_bytes
+
+    return await service.process_inbound_email(payload)

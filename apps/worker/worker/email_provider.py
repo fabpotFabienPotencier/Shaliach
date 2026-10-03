@@ -58,6 +58,7 @@ class ResendEmailProvider:
         from_address: str | None = None,
         reply_to: str | None = None,
         headers: dict[str, str] | None = None,
+        attachments: list[dict] | None = None,
     ) -> dict[str, Any]:
         if not self.api_key:
             logger.warning(f"No RESEND_API_KEY configured. Simulating send to {to}.")
@@ -81,6 +82,8 @@ class ResendEmailProvider:
         }
         if headers:
             payload["headers"] = headers
+        if attachments:
+            payload["attachments"] = attachments
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(f"{self.base_url}/emails", headers=req_headers, json=payload)

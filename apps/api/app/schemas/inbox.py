@@ -10,3 +10,4 @@ class SendReplySchema(BaseModel):
     bodyText: str = Field(min_length=1)
     bodyHtml: str = Field(min_length=1)
     crmStatus: CrmStatus | None = None
+    attachments: list[dict] | None = None

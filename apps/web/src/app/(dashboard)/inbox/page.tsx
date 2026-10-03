@@ -24,6 +24,9 @@ import {
   Building,
   Mail,
   ShieldBan,
+  Paperclip,
+  Download,
+  FileText,
 } from 'lucide-react';
 
 export default function InboxPage() {
@@ -195,6 +198,31 @@ export default function InboxPage() {
                         <span className="text-[10px] opacity-80">{formatDate(m.createdAt)}</span>
                       </div>
                       <p className="whitespace-pre-line font-sans">{m.textBody}</p>
+
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div className="pt-2 border-t border-primary-foreground/20 mt-2 space-y-1.5">
+                          <span className="text-[10px] font-semibold opacity-90 flex items-center">
+                            <Paperclip className="h-3 w-3 mr-1" />
+                            Attachments ({m.attachments.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {m.attachments.map((att: any, idx: number) => (
+                              <a
+                                key={idx}
+                                href={att.url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={att.filename}
+                                className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-primary-foreground/30 bg-primary-foreground/10 hover:bg-primary-foreground/20 text-xs font-medium transition-colors text-primary-foreground"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                <span className="truncate max-w-[160px]">{att.filename}</span>
+                                <Download className="h-3 w-3 opacity-80 ml-1" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -212,8 +240,39 @@ export default function InboxPage() {
                         </span>
                       </div>
                       <p className="whitespace-pre-line text-foreground font-sans">
-                        {inbound.body}
+                        {inbound.textBody || inbound.body}
                       </p>
+
+                      {inbound.attachments && inbound.attachments.length > 0 && (
+                        <div className="pt-2 border-t mt-2 space-y-1.5">
+                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center">
+                            <Paperclip className="h-3 w-3 mr-1 text-primary" />
+                            Attachments ({inbound.attachments.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {inbound.attachments.map((att: any, idx: number) => (
+                              <a
+                                key={idx}
+                                href={att.url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={att.filename}
+                                className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-xs font-medium transition-colors text-foreground"
+                              >
+                                <FileText className="h-3.5 w-3.5 text-primary" />
+                                <span className="truncate max-w-[160px]">{att.filename}</span>
+                                {att.size && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    ({Math.round(att.size / 1024)} KB)
+                                  </span>
+                                )}
+                                <Download className="h-3 w-3 text-muted-foreground ml-1" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {inbound.classification && (
                         <div className="pt-1 flex items-center space-x-2">
                           <span className="text-[10px] text-muted-foreground">Classified:</span>

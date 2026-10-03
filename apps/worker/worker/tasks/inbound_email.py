@@ -25,6 +25,8 @@ async def process_inbound_reply(
     subject: str,
     body: str,
     provider_message_id: str | None = None,
+    attachments: list[dict] | None = None,
+    from_name: str | None = None,
 ) -> dict:
     logger.info(f"Processing inbound reply from {recipient_email}")
     normalized = recipient_email.lower().strip()
@@ -95,13 +97,14 @@ async def process_inbound_reply(
             lead.crm_status = CrmStatus.SUPPRESSED.value
 
         # 5. Generate AI draft reply
+        att_note = f"\n[Prospect attached {len(attachments)} file(s): {', '.join(a.get('filename', 'file') for a in attachments)}]" if attachments else ""
         thread_history = [
-            {"sender": recipient_email, "body": body, "sentAt": datetime.now(timezone.utc).isoformat()}
+            {"sender": recipient_email, "body": f"{body}{att_note}", "sentAt": datetime.now(timezone.utc).isoformat()}
         ]
         reply_res = await ai.draft_reply(
             lead_name=lead.first_name or lead.business_name,
             classification=classification,
-            body=body,
+            body=f"{body}{att_note}",
             thread_history=thread_history,
         )
 
@@ -110,7 +113,7 @@ async def process_inbound_reply(
             conversation_id=conversation.id,
             lead_id=lead.id,
             from_email=recipient_email,
-            from_name=lead.first_name,
+            from_name=from_name or lead.first_name,
             to_email="outreach@fixhubtech.com",
             subject=subject,
             text_body=body,
@@ -118,6 +121,7 @@ async def process_inbound_reply(
             classification_confidence=confidence,
             ai_draft_reply=reply_res.get("textBody", ""),
             ai_draft_reply_approved=False,
+            attachments=attachments or [],
             received_at=datetime.now(timezone.utc),
         )
         db.add(inbound_msg)
