@@ -12,8 +12,12 @@ Usage:
 import argparse
 import asyncio
 import csv
+import logging
 import os
 import sys
+
+# Configure clean progress logging
+logging.basicConfig(level=logging.INFO, format="[+] %(message)s")
 
 # Ensure apps/api is in Python path for model imports
 script_dir = os.path.dirname(os.path.abspath(__file__))

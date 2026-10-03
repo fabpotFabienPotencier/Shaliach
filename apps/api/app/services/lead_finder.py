@@ -1,14 +1,15 @@
 """
 Autonomous Zero-Cost Lead Discovery & Email Extraction Service.
-Finds local businesses across any niche and location using free open registries
-(OpenStreetMap Overpass API and DuckDuckGo search) and deeply crawls their
-websites to extract verified email addresses, owner names, and phone numbers.
+Finds local businesses across any niche and location using free open engines
+(OpenStreetMap Nominatim/Overpass, DuckDuckGo search, and optional Serper/Google Places)
+and deeply crawls their websites to extract verified email addresses, owner names, and phone numbers.
 Requires $0.00, no paid APIs, and no subscriptions.
 """
 
 import asyncio
 from datetime import datetime, timezone
 import logging
+import os
 import re
 import urllib.parse
 from typing import Any
@@ -74,7 +75,16 @@ INVALID_EMAIL_SUBSTRINGS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".css", ".js",
     "sentry", "wixpress", "cloudflare", "bootstrap", "schema.org",
     "example.com", "domain.com", "yourdomain", "email.com",
-    "placeholder", "fontawesome", "wordpress", "gravatar"
+    "placeholder", "fontawesome", "wordpress", "gravatar", "git",
+    "jquery", "node_modules", "wp-content", "vimeo", "youtube"
+}
+
+IGNORED_DOMAINS = {
+    "duckduckgo.com", "yelp.com", "yellowpages.com", "angi.com", "bbb.org",
+    "facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com",
+    "youtube.com", "mapquest.com", "tripadvisor.com", "wikipedia.org",
+    "pinterest.com", "apple.com", "google.com", "yahoo.com", "bing.com",
+    "indeed.com", "glassdoor.com", "thumbtack.com", "homeadvisor.com"
 }
 
 EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
@@ -104,11 +114,24 @@ class LeadFinderService:
 
         logger.info(f"Starting lead discovery for '{niche}' in '{location}' (limit: {limit})")
 
-        # 1. Gather raw business candidates
-        candidates = await self._query_openstreetmap(niche_clean, location_clean, limit * 2)
-        if len(candidates) < limit:
-            web_candidates = await self._query_duckduckgo(niche_clean, location_clean, limit - len(candidates))
-            candidates.extend(web_candidates)
+        # 1. Gather raw business candidates from multiple free engines
+        candidates: list[dict[str, Any]] = []
+
+        # A. Check if user configured optional Google Places / Serper key
+        serper_key = os.environ.get("SERPER_API_KEY")
+        if serper_key:
+            serper_candidates = await self._query_serper(niche_clean, location_clean, limit * 2, serper_key)
+            candidates.extend(serper_candidates)
+
+        # B. DuckDuckGo targeted direct search (Decodes uddg + excludes directories)
+        if len(candidates) < limit * 2:
+            ddg_candidates = await self._query_duckduckgo(niche_clean, location_clean, (limit * 2) - len(candidates))
+            candidates.extend(ddg_candidates)
+
+        # C. OpenStreetMap Nominatim + Overpass bounding box
+        if len(candidates) < limit * 2:
+            osm_candidates = await self._query_openstreetmap(niche_clean, location_clean, (limit * 2) - len(candidates))
+            candidates.extend(osm_candidates)
 
         # Deduplicate candidates by domain/website
         seen_domains = set()
@@ -135,7 +158,7 @@ class LeadFinderService:
                     logger.debug(f"Crawl failed for {cand.get('business_name')}: {e}")
                     return cand
 
-        tasks = [_crawl_single(cand) for cand in unique_candidates[:limit * 2]]
+        tasks = [_crawl_single(cand) for cand in unique_candidates[:limit * 3]]
         results = await asyncio.gather(*tasks)
 
         # Filter only leads that have a verified email address
@@ -160,77 +183,44 @@ class LeadFinderService:
             "leads": enriched_leads,
         }
 
-    async def _query_openstreetmap(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
-        """Query OpenStreetMap Overpass API for registered local businesses in area."""
-        city = location.split(",")[0].strip()
-
-        # Find matching OSM tag
-        cat_tuple = OSM_CATEGORY_MAP.get(niche)
-        if not cat_tuple:
-            for k, v in OSM_CATEGORY_MAP.items():
-                if k in niche or niche in k:
-                    cat_tuple = v
-                    break
-
-        query_lines = []
-        if cat_tuple:
-            k, v = cat_tuple
-            query_lines.append(f'nwr["{k}"="{v}"](area.searchArea);')
-        else:
-            query_lines.append(f'nwr["craft"~"{niche}",i](area.searchArea);')
-            query_lines.append(f'nwr["shop"~"{niche}",i](area.searchArea);')
-            query_lines.append(f'nwr["amenity"~"{niche}",i](area.searchArea);')
-            query_lines.append(f'nwr["office"~"{niche}",i](area.searchArea);')
-
-        overpass_query = f"""
-        [out:json][timeout:30];
-        area["name"="{city}"]->.searchArea;
-        (
-          {"".join(query_lines)}
-          nwr["name"~"{niche}",i](area.searchArea);
-        );
-        out tags {max(target_count, 30)};
-        """
-
+    async def _query_serper(self, niche: str, location: str, target_count: int, api_key: str) -> list[dict[str, Any]]:
+        """Optional: Query Serper.dev Google Maps Places API for instant authoritative local businesses."""
         results = []
         try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
-                    "https://overpass-api.de/api/interpreter",
-                    data={"data": overpass_query},
-                    headers={"User-Agent": "ShaliachLeadFinder/1.0 (FixHubTech)"},
+                    "https://google.serper.dev/places",
+                    headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                    json={"q": f"{niche} in {location}", "num": min(target_count, 50)},
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    for elem in data.get("elements", []):
-                        tags = elem.get("tags", {})
-                        name = tags.get("name")
-                        website = tags.get("website") or tags.get("contact:website") or ""
-                        email_direct = tags.get("email") or tags.get("contact:email") or ""
-                        phone = tags.get("phone") or tags.get("contact:phone") or ""
-                        city_tag = tags.get("addr:city") or city
-                        state_tag = tags.get("addr:state") or ""
-
-                        if name and (website or email_direct):
+                    for item in data.get("places", []):
+                        website = item.get("website", "")
+                        domain = self._extract_domain(website)
+                        if website and domain and not any(ign in domain for ign in IGNORED_DOMAINS):
                             results.append({
-                                "business_name": name,
+                                "business_name": item.get("title") or domain.title(),
                                 "website": website,
-                                "email": email_direct.lower().strip() if email_direct else None,
-                                "phone": phone,
-                                "city": city_tag,
-                                "state": state_tag,
+                                "email": None,
+                                "phone": item.get("phoneNumber"),
+                                "city": location.split(",")[0].strip(),
+                                "state": location.split(",")[1].strip() if "," in location else "",
                                 "category": niche.title(),
                                 "first_name": None,
                             })
         except Exception as e:
-            logger.warning(f"Overpass query error: {e}")
-
+            logger.warning(f"Serper API query error: {e}")
         return results
 
     async def _query_duckduckgo(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
-        """Fallback to DuckDuckGo search to discover business websites."""
+        """
+        Query DuckDuckGo HTML engine using negative directory filters and decoding uddg redirects.
+        100% Free, requires $0.00 and no API key.
+        """
         results = []
-        search_query = f"{niche} {location} contact website"
+        city = location.split(",")[0].strip()
+        search_query = f'{niche} {city} contact -site:yelp.com -site:yellowpages.com -site:angi.com -site:bbb.org -site:facebook.com'
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(search_query)}"
 
         try:
@@ -238,32 +228,137 @@ class LeadFinderService:
                 resp = await client.get(url, headers=self.headers)
                 if resp.status_code == 200:
                     html = resp.text
-                    # Extract result links and snippets
-                    matches = re.findall(r'<a class="result__url" href="([^"]+)">(.*?)</a>', html)
-                    for raw_url, text in matches:
-                        clean_url = raw_url.strip()
-                        if "duckduckgo" in clean_url or "yelp" in clean_url or "yellowpages" in clean_url or "angi" in clean_url or "bbb.org" in clean_url:
-                            continue
-                        if not clean_url.startswith("http"):
-                            clean_url = f"https://{clean_url}"
 
-                        domain = self._extract_domain(clean_url)
-                        if domain:
+                    # Extract result links and titles
+                    # DuckDuckGo HTML format: <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=...">(title)</a>
+                    matches = re.findall(
+                        r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+                        html,
+                        re.DOTALL
+                    )
+
+                    for raw_href, raw_title in matches:
+                        # 1. Decode target URL from DuckDuckGo uddg redirect parameter
+                        target_url = None
+                        uddg_match = re.search(r'[?&]uddg=([^&]+)', raw_href)
+                        if uddg_match:
+                            target_url = urllib.parse.unquote(uddg_match.group(1))
+                        elif raw_href.startswith("http"):
+                            target_url = raw_href
+
+                        if not target_url:
+                            continue
+
+                        # 2. Check if domain is an ignored aggregator
+                        domain = self._extract_domain(target_url)
+                        if not domain or any(ign in domain for ign in IGNORED_DOMAINS):
+                            continue
+
+                        # 3. Clean up business name from search result title
+                        clean_title = re.sub(r'<[^>]+>', '', raw_title).strip()
+                        # Clean common suffixes like "Home | Vaughan Plumbing" -> "Vaughan Plumbing"
+                        parts = re.split(r'[\–\|–\:\-]', clean_title)
+                        biz_title = parts[0].strip()
+                        if (len(biz_title) < 3 or biz_title.lower() in {"home", "welcome", "about us", "contact us"}) and len(parts) > 1:
+                            biz_title = parts[1].strip()
+
+                        if not biz_title or len(biz_title) < 2:
                             biz_title = domain.split(".")[0].replace("-", " ").replace("_", " ").title()
-                            results.append({
-                                "business_name": biz_title,
-                                "website": clean_url,
-                                "email": None,
-                                "phone": None,
-                                "city": location.split(",")[0].strip(),
-                                "state": location.split(",")[1].strip() if "," in location else "",
-                                "category": niche.title(),
-                                "first_name": None,
-                            })
-                            if len(results) >= target_count:
-                                break
+
+                        results.append({
+                            "business_name": biz_title,
+                            "website": target_url,
+                            "email": None,
+                            "phone": None,
+                            "city": city,
+                            "state": location.split(",")[1].strip() if "," in location else "",
+                            "category": niche.title(),
+                            "first_name": None,
+                        })
+
+                        if len(results) >= target_count:
+                            break
         except Exception as e:
             logger.warning(f"DuckDuckGo search error: {e}")
+
+        return results
+
+    async def _query_openstreetmap(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
+        """Query OpenStreetMap Overpass API using Nominatim geocoded bounding box for 100% reliability."""
+        city = location.split(",")[0].strip()
+        results = []
+
+        try:
+            # 1. Geocode location via Nominatim to obtain precise bounding box
+            bbox = None
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                nom_url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(location)}&format=json&limit=1"
+                nom_resp = await client.get(nom_url, headers={"User-Agent": "ShaliachLeadDiscovery/2.0"})
+                if nom_resp.status_code == 200:
+                    geo_data = nom_resp.json()
+                    if geo_data and "boundingbox" in geo_data[0]:
+                        raw_box = geo_data[0]["boundingbox"]
+                        # Nominatim returns [south, north, west, east]
+                        bbox = (float(raw_box[0]), float(raw_box[2]), float(raw_box[1]), float(raw_box[3]))
+
+            # 2. Map niche to OSM category
+            cat_tuple = OSM_CATEGORY_MAP.get(niche)
+            if not cat_tuple:
+                for k, v in OSM_CATEGORY_MAP.items():
+                    if k in niche or niche in k:
+                        cat_tuple = v
+                        break
+
+            if bbox:
+                south, west, north, east = bbox
+                if cat_tuple:
+                    k, v = cat_tuple
+                    query_body = f'nwr["{k}"="{v}"]({south},{west},{north},{east});'
+                else:
+                    query_body = f"""
+                    nwr["craft"~"{niche}",i]({south},{west},{north},{east});
+                    nwr["shop"~"{niche}",i]({south},{west},{north},{east});
+                    nwr["amenity"~"{niche}",i]({south},{west},{north},{east});
+                    """
+
+                overpass_query = f"""
+                [out:json][timeout:25];
+                (
+                  {query_body}
+                );
+                out tags {max(target_count, 30)};
+                """
+
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    resp = await client.post(
+                        "https://overpass-api.de/api/interpreter",
+                        data={"data": overpass_query},
+                        headers={"User-Agent": "ShaliachLeadDiscovery/2.0"},
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for elem in data.get("elements", []):
+                            tags = elem.get("tags", {})
+                            name = tags.get("name")
+                            website = tags.get("website") or tags.get("contact:website") or ""
+                            email_direct = tags.get("email") or tags.get("contact:email") or ""
+                            phone = tags.get("phone") or tags.get("contact:phone") or ""
+                            city_tag = tags.get("addr:city") or city
+                            state_tag = tags.get("addr:state") or ""
+
+                            if name and (website or email_direct):
+                                results.append({
+                                    "business_name": name,
+                                    "website": website,
+                                    "email": email_direct.lower().strip() if email_direct else None,
+                                    "phone": phone,
+                                    "city": city_tag,
+                                    "state": state_tag,
+                                    "category": niche.title(),
+                                    "first_name": None,
+                                })
+        except Exception as e:
+            logger.warning(f"OpenStreetMap Overpass error: {e}")
 
         return results
 
