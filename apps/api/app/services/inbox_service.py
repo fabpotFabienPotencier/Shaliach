@@ -108,6 +108,7 @@ class InboxService:
                 "aiDraftReply": msg.ai_draft_reply,
                 "draftReply": parsed_draft,
                 "aiDraftReplyApproved": msg.ai_draft_reply_approved,
+                "quotedText": getattr(msg, "quoted_text", None),
                 "attachments": getattr(msg, "attachments", []) or [],
                 "receivedAt": msg.received_at.isoformat() if msg.received_at else None,
             })

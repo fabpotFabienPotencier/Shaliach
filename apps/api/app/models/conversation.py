@@ -40,6 +40,7 @@ class InboundMessage(Base):
     to_email: Mapped[str] = mapped_column(String, nullable=False)
     subject: Mapped[str] = mapped_column(String, nullable=False)
     text_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quoted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     html_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     classification: Mapped[str | None] = mapped_column(String, nullable=True)

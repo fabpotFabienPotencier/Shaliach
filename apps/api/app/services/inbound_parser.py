@@ -32,6 +32,56 @@ def _clean_email_address(raw_str: Any) -> tuple[str, str | None]:
     return raw_str.lower().strip(), None
 
 
+RE_QUOTE_HEADER = re.compile(
+    r"(?:\r?\n|^)\s*(?:"
+    r"On\s+[\w\s,.:–—\-\+]+?(?:at\s+[\w\s,.:apmAPM]+?)?(?:<[^>]+>)?\s*wrote:|"
+    r"Le\s+[\w\s,.:–—\-\+]+?a écrit\s*:|"
+    r"Am\s+[\w\s,.:–—\-\+]+?schrieb\s*:|"
+    r"-----Original Message-----|"
+    r"_{8,}|"
+    r"-{8,}|"
+    r"From:\s*[\s\S]+?Sent:\s*[\s\S]+?To:\s*[\s\S]+?Subject:\s*"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def split_email_quotes(raw_text: str | None) -> tuple[str, str | None]:
+    """Separate the prospect's actual new reply from previous quoted email threads and signatures."""
+    if not raw_text:
+        return "", None
+
+    text = raw_text.strip()
+    match = RE_QUOTE_HEADER.search(text)
+    if match:
+        clean = text[:match.start()].strip()
+        quoted = text[match.start():].strip()
+        if clean:
+            return clean, quoted
+
+    # Fallback line-by-line inspection: split at first block of lines starting with '>'
+    lines = text.splitlines()
+    clean_lines = []
+    quoted_lines = []
+    found_quote_start = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(">") or (stripped.startswith("On ") and "wrote:" in stripped):
+            found_quote_start = True
+            quoted_lines = lines[i:]
+            break
+        clean_lines.append(line)
+
+    if found_quote_start and clean_lines:
+        clean = "\n".join(clean_lines).strip()
+        quoted = "\n".join(quoted_lines).strip()
+        if clean:
+            return clean, quoted
+
+    return text, None
+
+
 def parse_inbound_email(
     raw_payload: str | bytes | dict[str, Any],
     storage: StorageService | None = None,
@@ -90,12 +140,15 @@ def parse_inbound_email(
                     "path": url,
                 })
 
+        clean_text, quoted_text = split_email_quotes(text_body)
         return {
             "from_email": email_addr,
             "from_name": display_name,
             "to_email": to_email,
             "subject": subject,
-            "text": text_body,
+            "text": clean_text,
+            "quoted_text": quoted_text,
+            "raw_text": text_body or "",
             "html": html_body,
             "attachments": saved_attachments,
         }
@@ -183,12 +236,15 @@ def parse_inbound_email(
             except Exception:
                 html_body = msg.get_payload() or ""
 
+    clean_text, quoted_text = split_email_quotes(text_body)
     return {
         "from_email": email_addr,
         "from_name": display_name,
         "to_email": to_email,
         "subject": subject,
-        "text": text_body or "",
+        "text": clean_text,
+        "quoted_text": quoted_text,
+        "raw_text": text_body or "",
         "html": html_body or "",
         "attachments": saved_attachments,
     }

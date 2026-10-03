@@ -147,6 +147,22 @@ class WebhooksService:
 
         # 1. Locate or create Lead
         normalized = sender_email.lower().strip()
+        domain = normalized.split("@")[1] if "@" in normalized else ""
+        consumer_domains = {
+            "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
+            "icloud.com", "aol.com", "proton.me", "protonmail.com", "live.com"
+        }
+        if from_name:
+            clean_biz = from_name
+            clean_first = from_name.split()[0]
+        elif domain in consumer_domains or not domain:
+            raw_prefix = normalized.split("@")[0].replace(".", " ").title()
+            clean_biz = raw_prefix
+            clean_first = raw_prefix.split()[0]
+        else:
+            clean_biz = domain.capitalize()
+            clean_first = from_name or clean_biz
+
         stmt = select(Lead).where(Lead.normalized_email == normalized)
         lead = (await self.db.execute(stmt)).scalar_one_or_none()
 
@@ -154,8 +170,8 @@ class WebhooksService:
             lead = Lead(
                 email=sender_email,
                 normalized_email=normalized,
-                first_name=from_name,
-                business_name=normalized.split("@")[1] if "@" in normalized else "Prospect Business",
+                first_name=clean_first,
+                business_name=clean_biz,
                 validation_status=ValidationStatus.VALID.value,
                 crm_status=CrmStatus.REPLIED.value,
             )
@@ -163,6 +179,10 @@ class WebhooksService:
             await self.db.flush()
         else:
             lead.crm_status = CrmStatus.REPLIED.value
+            if from_name and not lead.first_name:
+                lead.first_name = clean_first
+            if clean_biz and (not lead.business_name or lead.business_name in consumer_domains):
+                lead.business_name = clean_biz
 
         # 2. Locate or create Conversation
         conv_stmt = select(Conversation).where(Conversation.lead_id == lead.id)
@@ -196,6 +216,7 @@ class WebhooksService:
             to_email=to_email,
             subject=subject,
             text_body=body_text,
+            quoted_text=parsed.get("quoted_text"),
             html_body=parsed.get("html") or None,
             classification="INTERESTED",
             classification_confidence=0.8,

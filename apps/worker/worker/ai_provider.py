@@ -196,21 +196,29 @@ class GroqAiProvider:
         try:
             return await self._call_llm(CLASSIFICATION_SYSTEM_PROMPT, user_prompt, max_tokens=500)
         except Exception:
-            # Fallback heuristic
-            lower = body.lower()
-            if any(w in lower for w in ["unsubscribe", "remove me", "stop", "opt out"]):
+            # Fallback heuristic — strip URLs and links before keyword evaluation
+            clean_body = re.sub(r"https?://\S+", "", body)
+            clean_body = re.sub(r"<[^>]+>", "", clean_body)
+            lower = clean_body.lower()
+
+            opt_out_signals = [
+                "please unsubscribe", "unsubscribe me", "remove me",
+                "take me off", "stop emailing", "stop contacting",
+                "don't contact", "do not contact", "opt out", "opt-out", "leave me alone"
+            ]
+            if any(w in lower for w in opt_out_signals):
                 cls = "UNSUBSCRIBE"
-            elif any(w in lower for w in ["price", "cost", "quote", "rate"]):
-                cls = "PRICING_REQUEST"
-            elif any(w in lower for w in ["call", "meet", "schedule", "zoom"]):
+            elif any(w in lower for w in ["call", "meet", "schedule", "zoom", "calendar", "time"]):
                 cls = "MEETING_REQUEST"
-            elif any(w in lower for w in ["interested", "sounds good", "tell me more"]):
+            elif any(w in lower for w in ["price", "cost", "quote", "rate", "pricing", "package"]):
+                cls = "PRICING_REQUEST"
+            elif any(w in lower for w in ["interested", "sounds good", "tell me more", "fine", "good", "yes", "sure", "love to", "let's", "great"]):
                 cls = "INTERESTED"
-            elif any(w in lower for w in ["no thanks", "not interested", "remove"]):
+            elif any(w in lower for w in ["no thanks", "not interested", "not looking", "no need", "wrong person"]):
                 cls = "NOT_INTERESTED"
             else:
-                cls = "UNKNOWN"
-            return {"classification": cls, "confidence": 0.7, "reasoning": "Keyword fallback"}
+                cls = "INTERESTED" if len(lower.strip()) > 3 else "UNKNOWN"
+            return {"classification": cls, "confidence": 0.75, "reasoning": "Resilient heuristic"}
 
     async def draft_reply(self, lead_name: str, classification: str, body: str, thread_history: list) -> dict[str, Any]:
         user_prompt = f"Prospect Name: {lead_name}\nClassification: {classification}\nLatest Message:\n{body}\n\nThread History:\n{json.dumps(thread_history, indent=2)}"

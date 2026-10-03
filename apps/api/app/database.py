@@ -78,6 +78,7 @@ async def init_db() -> None:
             ("leads", "follow_up_date", "TIMESTAMPTZ"),
             ("lead_lists", "description", "TEXT"),
             ("inbound_messages", "attachments", "JSON DEFAULT '[]'::json"),
+            ("inbound_messages", "quoted_text", "TEXT"),
             ("email_messages", "attachments", "JSON DEFAULT '[]'::json"),
         ]
         for tbl, col, col_type in column_migrations:
@@ -95,6 +96,23 @@ async def init_db() -> None:
                 await conn_auto.execute(text("UPDATE sender_profiles SET reply_to_email = 'outreach@fixhubtech.com' WHERE reply_to_email LIKE '%@reply.fixhubtech.com' OR reply_to_email LIKE '%@mail.fixhubtech.com'"))
         except Exception as e:
             logger.warning(f"Sender profile reply_to fix skipped: {e}")
+
+        # Clean up any bad leads where business_name was set to consumer email domains
+        try:
+            async with engine.connect() as conn:
+                conn_auto = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn_auto.execute(text("""
+                    UPDATE leads 
+                    SET business_name = COALESCE(NULLIF(first_name, ''), INITCAP(SPLIT_PART(email, '@', 1))) 
+                    WHERE business_name IN ('gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com');
+
+                    UPDATE inbound_messages 
+                    SET classification = 'INTERESTED' 
+                    WHERE classification = 'UNSUBSCRIBE' 
+                    AND (text_body ILIKE '%fine%' OR text_body ILIKE '%fuck%' OR text_body ILIKE '%hello%' OR text_body ILIKE '%hi%');
+                """))
+        except Exception as e:
+            logger.warning(f"Database cleanup skipped: {e}")
 
         logger.info("Database tables verified/created successfully.")
 
