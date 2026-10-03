@@ -27,6 +27,7 @@ async def process_inbound_reply(
     provider_message_id: str | None = None,
     attachments: list[dict] | None = None,
     from_name: str | None = None,
+    inbound_message_id: str | None = None,
 ) -> dict:
     logger.info(f"Processing inbound reply from {recipient_email}")
     normalized = recipient_email.lower().strip()
@@ -72,13 +73,18 @@ async def process_inbound_reply(
 
         # 3. AI Reply Classification with Groq
         ai = GroqAiProvider()
-        classification_res = await ai.classify_reply(
-            from_email=recipient_email,
-            subject=subject,
-            body=body,
-        )
-        classification = classification_res.get("classification", "UNKNOWN")
-        confidence = float(classification_res.get("confidence", 0.8))
+        try:
+            classification_res = await ai.classify_reply(
+                from_email=recipient_email,
+                subject=subject,
+                body=body,
+            )
+            classification = classification_res.get("classification", "UNKNOWN")
+            confidence = float(classification_res.get("confidence", 0.8))
+        except Exception as e:
+            logger.warning(f"Classification failed ({e}), defaulting to INTERESTED")
+            classification = "INTERESTED"
+            confidence = 0.7
 
         # 4. Handle Unsubscribe or Complaint
         if classification in (ReplyClassification.UNSUBSCRIBE.value, ReplyClassification.COMPLAINT.value):
@@ -97,34 +103,52 @@ async def process_inbound_reply(
             lead.crm_status = CrmStatus.SUPPRESSED.value
 
         # 5. Generate AI draft reply
-        att_note = f"\n[Prospect attached {len(attachments)} file(s): {', '.join(a.get('filename', 'file') for a in attachments)}]" if attachments else ""
-        thread_history = [
-            {"sender": recipient_email, "body": f"{body}{att_note}", "sentAt": datetime.now(timezone.utc).isoformat()}
-        ]
-        reply_res = await ai.draft_reply(
-            lead_name=lead.first_name or lead.business_name,
-            classification=classification,
-            body=f"{body}{att_note}",
-            thread_history=thread_history,
-        )
+        reply_res = {}
+        try:
+            att_note = f"\n[Prospect attached {len(attachments)} file(s): {', '.join(a.get('filename', 'file') for a in attachments)}]" if attachments else ""
+            thread_history = [
+                {"sender": recipient_email, "body": f"{body}{att_note}", "sentAt": datetime.now(timezone.utc).isoformat()}
+            ]
+            reply_res = await ai.draft_reply(
+                lead_name=lead.first_name or lead.business_name,
+                classification=classification,
+                body=f"{body}{att_note}",
+                thread_history=thread_history,
+            )
+        except Exception as e:
+            logger.warning(f"Reply draft failed ({e}), using default template")
+            reply_res = {
+                "textBody": f"Hi {lead.first_name or ''},\n\nThanks for reaching out! What does your schedule look like for a brief conversation this week?\n\nBest,\nJoshua Caleb",
+            }
 
-        # 6. Create InboundMessage
-        inbound_msg = InboundMessage(
-            conversation_id=conversation.id,
-            lead_id=lead.id,
-            from_email=recipient_email,
-            from_name=from_name or lead.first_name,
-            to_email="outreach@fixhubtech.com",
-            subject=subject,
-            text_body=body,
-            classification=classification,
-            classification_confidence=confidence,
-            ai_draft_reply=reply_res.get("textBody", ""),
-            ai_draft_reply_approved=False,
-            attachments=attachments or [],
-            received_at=datetime.now(timezone.utc),
-        )
-        db.add(inbound_msg)
+        # 6. Update or Create InboundMessage
+        inbound_msg = None
+        if inbound_message_id:
+            msg_stmt = select(InboundMessage).where(InboundMessage.id == inbound_message_id)
+            inbound_msg = (await db.execute(msg_stmt)).scalar_one_or_none()
+
+        if inbound_msg:
+            inbound_msg.classification = classification
+            inbound_msg.classification_confidence = confidence
+            if reply_res.get("textBody"):
+                inbound_msg.ai_draft_reply = reply_res.get("textBody")
+        else:
+            inbound_msg = InboundMessage(
+                conversation_id=conversation.id,
+                lead_id=lead.id,
+                from_email=recipient_email,
+                from_name=from_name or lead.first_name,
+                to_email="outreach@fixhubtech.com",
+                subject=subject,
+                text_body=body,
+                classification=classification,
+                classification_confidence=confidence,
+                ai_draft_reply=reply_res.get("textBody", ""),
+                ai_draft_reply_approved=False,
+                attachments=attachments or [],
+                received_at=datetime.now(timezone.utc),
+            )
+            db.add(inbound_msg)
 
         # 7. Update CRM Stage
         if classification == ReplyClassification.INTERESTED.value:

@@ -18,20 +18,24 @@ from ..storage import StorageService
 logger = logging.getLogger("shaliach.inbound_parser")
 
 
-def _clean_email_address(raw_str: str) -> tuple[str, str | None]:
-    """Extract clean email and display name from 'Name <email@domain.com>' or 'email@domain.com'."""
-    raw_str = (raw_str or "").strip().strip('"').strip("'")
+def _clean_email_address(raw_str: Any) -> tuple[str, str | None]:
+    """Extract clean email and display name safely from AddressHeader or string."""
+    if hasattr(raw_str, "addresses") and raw_str.addresses:
+        first = raw_str.addresses[0]
+        return first.addr_spec.lower().strip(), first.display_name or None
+    raw_str = str(raw_str or "").strip().strip('"').strip("'")
     match = re.search(r"^(.*?)\s*<([^>]+)>$", raw_str)
     if match:
         name = match.group(1).strip().strip('"').strip("'")
         email_addr = match.group(2).strip().lower()
         return email_addr, name or None
-    return raw_str.lower(), None
+    return raw_str.lower().strip(), None
 
 
 def parse_inbound_email(
     raw_payload: str | bytes | dict[str, Any],
     storage: StorageService | None = None,
+    headers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Parse incoming email payload (MIME or JSON) and upload any attachments to R2."""
     if storage is None:
@@ -102,13 +106,26 @@ def parse_inbound_email(
     else:
         raw_bytes = raw_payload
 
-    msg = email.message_from_bytes(raw_bytes, policy=policy.default)
+    try:
+        msg = email.message_from_bytes(raw_bytes, policy=policy.default)
+    except Exception as e:
+        logger.warning(f"Error parsing MIME with default policy ({e}), falling back to compat32")
+        msg = email.message_from_bytes(raw_bytes, policy=policy.compat32)
+
     from_raw = msg.get("From", "")
     to_raw = msg.get("To", "")
-    subject = msg.get("Subject", "Re: Outreach")
+    subject = str(msg.get("Subject", "Re: Outreach"))
 
     email_addr, display_name = _clean_email_address(from_raw)
     to_email, _ = _clean_email_address(to_raw)
+
+    if headers:
+        cf_from = headers.get("x-cloudflare-email-from") or headers.get("from")
+        cf_to = headers.get("x-cloudflare-email-to") or headers.get("to")
+        if not email_addr and cf_from:
+            email_addr, display_name = _clean_email_address(cf_from)
+        if not to_email and cf_to:
+            to_email, _ = _clean_email_address(cf_to)
 
     text_body = ""
     html_body = ""

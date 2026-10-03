@@ -214,4 +214,12 @@ class GroqAiProvider:
 
     async def draft_reply(self, lead_name: str, classification: str, body: str, thread_history: list) -> dict[str, Any]:
         user_prompt = f"Prospect Name: {lead_name}\nClassification: {classification}\nLatest Message:\n{body}\n\nThread History:\n{json.dumps(thread_history, indent=2)}"
-        return await self._call_llm(REPLY_DRAFT_SYSTEM_PROMPT, user_prompt, max_tokens=600)
+        try:
+            return await self._call_llm(REPLY_DRAFT_SYSTEM_PROMPT, user_prompt, max_tokens=600)
+        except Exception as e:
+            logger.warning(f"Groq reply drafting failed ({e}), using default fallback response")
+            return {
+                "subject": "Re: Outreach",
+                "textBody": f"Hi {lead_name},\n\nThanks for reaching out! I appreciate your message and would love to connect. What does your schedule look like for a brief chat sometime this week?\n\nBest regards,\nJoshua Caleb\nFounder & Web Developer | FixHubTech",
+                "htmlBody": f"<p>Hi {lead_name},</p><p>Thanks for reaching out! I appreciate your message and would love to connect. What does your schedule look like for a brief chat sometime this week?</p><p>Best regards,<br><strong>Joshua Caleb</strong><br>Founder & Web Developer | FixHubTech</p>",
+            }

@@ -88,6 +88,14 @@ async def init_db() -> None:
             except Exception as e:
                 logger.warning(f"Column migration {tbl}.{col} skipped: {e}")
 
+        # Ensure sender profile reply_to is routed to the root domain where Cloudflare MX records exist
+        try:
+            async with engine.connect() as conn:
+                conn_auto = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn_auto.execute(text("UPDATE sender_profiles SET reply_to_email = 'outreach@fixhubtech.com' WHERE reply_to_email LIKE '%@reply.fixhubtech.com' OR reply_to_email LIKE '%@mail.fixhubtech.com'"))
+        except Exception as e:
+            logger.warning(f"Sender profile reply_to fix skipped: {e}")
+
         logger.info("Database tables verified/created successfully.")
 
         async with async_session_factory() as session:
@@ -107,8 +115,8 @@ async def init_db() -> None:
                     id="default-sender-profile",
                     name="Default — Joshua Caleb",
                     from_name="Joshua Caleb",
-                    from_email="joshua@mail.fixhubtech.com",
-                    reply_to_email="joshua@reply.fixhubtech.com",
+                    from_email="outreach@fixhubtech.com",
+                    reply_to_email="outreach@fixhubtech.com",
                     company_name="FixHubTech",
                     company_website="https://fixhubtech.com",
                     postal_address="",

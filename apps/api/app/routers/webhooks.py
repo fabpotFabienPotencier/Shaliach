@@ -43,4 +43,5 @@ async def handle_inbound_email_webhook(
     else:
         payload = body_bytes
 
-    return await service.process_inbound_email(payload)
+    headers = dict(request.headers)
+    return await service.process_inbound_email(payload, headers=headers)

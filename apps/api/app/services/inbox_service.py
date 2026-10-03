@@ -177,9 +177,9 @@ class InboxService:
         sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
         sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
 
-        from_email = sender_profile.from_email if sender_profile else "joshua@mail.fixhubtech.com"
+        from_email = sender_profile.from_email if sender_profile else "outreach@fixhubtech.com"
         from_name = sender_profile.from_name if sender_profile else "Joshua Caleb"
-        reply_to_email = sender_profile.reply_to_email if sender_profile else "joshua@reply.fixhubtech.com"
+        reply_to_email = sender_profile.reply_to_email if sender_profile else "outreach@fixhubtech.com"
 
         # Create outgoing EmailMessage
         idempotency_key = secrets.token_hex(16)

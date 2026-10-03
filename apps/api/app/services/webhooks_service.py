@@ -1,6 +1,7 @@
 """Webhooks processing service."""
 
 import base64
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import logging
@@ -12,6 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..models.webhook import WebhookEvent
+from ..models.lead import Lead
+from ..models.conversation import Conversation, InboundMessage
+from ..enums import ValidationStatus, CrmStatus
 from ..errors import ValidationError, ErrorCode
 from ..queue import get_queue
 
@@ -126,9 +130,10 @@ class WebhooksService:
     async def process_inbound_email(
         self,
         raw_payload: str | bytes | dict[str, Any],
+        headers: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         from .inbound_parser import parse_inbound_email
-        parsed = parse_inbound_email(raw_payload)
+        parsed = parse_inbound_email(raw_payload, headers=headers)
 
         sender_email = parsed.get("from_email")
         if not sender_email:
@@ -138,7 +143,71 @@ class WebhooksService:
         body_text = parsed.get("text") or parsed.get("html") or ""
         attachments = parsed.get("attachments", [])
         from_name = parsed.get("from_name")
+        to_email = parsed.get("to_email") or "outreach@fixhubtech.com"
 
+        # 1. Locate or create Lead
+        normalized = sender_email.lower().strip()
+        stmt = select(Lead).where(Lead.normalized_email == normalized)
+        lead = (await self.db.execute(stmt)).scalar_one_or_none()
+
+        if not lead:
+            lead = Lead(
+                email=sender_email,
+                normalized_email=normalized,
+                first_name=from_name,
+                business_name=normalized.split("@")[1] if "@" in normalized else "Prospect Business",
+                validation_status=ValidationStatus.VALID.value,
+                crm_status=CrmStatus.REPLIED.value,
+            )
+            self.db.add(lead)
+            await self.db.flush()
+        else:
+            lead.crm_status = CrmStatus.REPLIED.value
+
+        # 2. Locate or create Conversation
+        conv_stmt = select(Conversation).where(Conversation.lead_id == lead.id)
+        conversation = (await self.db.execute(conv_stmt)).scalar_one_or_none()
+
+        if not conversation:
+            conversation = Conversation(
+                lead_id=lead.id,
+                subject=subject or f"Conversation with {lead.business_name}",
+                last_message_at=datetime.now(timezone.utc),
+                message_count=1,
+            )
+            self.db.add(conversation)
+            await self.db.flush()
+        else:
+            conversation.last_message_at = datetime.now(timezone.utc)
+            conversation.message_count = (conversation.message_count or 0) + 1
+
+        # 3. Create InboundMessage immediately
+        initial_draft = (
+            f"Hi {lead.first_name or 'there'},\n\n"
+            f"Thanks for reaching out! I appreciate your message and would love to connect. "
+            f"What does your schedule look like for a brief conversation this week?\n\n"
+            f"Best regards,\nJoshua Caleb\nFounder & Web Developer | FixHubTech"
+        )
+        inbound_msg = InboundMessage(
+            conversation_id=conversation.id,
+            lead_id=lead.id,
+            from_email=sender_email,
+            from_name=from_name or lead.first_name,
+            to_email=to_email,
+            subject=subject,
+            text_body=body_text,
+            html_body=parsed.get("html") or None,
+            classification="INTERESTED",
+            classification_confidence=0.8,
+            ai_draft_reply=initial_draft,
+            ai_draft_reply_approved=False,
+            attachments=attachments or [],
+            received_at=datetime.now(timezone.utc),
+        )
+        self.db.add(inbound_msg)
+        await self.db.commit()
+
+        # 4. Optional: enqueue AI classification and draft refinement in background
         try:
             queue = await get_queue()
             await queue.enqueue_job(
@@ -148,16 +217,19 @@ class WebhooksService:
                 body=body_text,
                 attachments=attachments,
                 from_name=from_name,
-                _job_id=f"inbound-{secrets.token_hex(8)}",
+                inbound_message_id=inbound_msg.id,
+                _job_id=f"inbound-{inbound_msg.id}",
             )
-            logger.info(f"Enqueued inbound email from {sender_email} with {len(attachments)} attachment(s)")
-            return {
-                "success": True,
-                "sender": sender_email,
-                "subject": subject,
-                "attachmentCount": len(attachments),
-                "attachments": [{"filename": a["filename"], "url": a.get("url", "")} for a in attachments],
-            }
+            logger.info(f"Synchronously saved inbound email from {sender_email} (msg {inbound_msg.id}) with {len(attachments)} attachments and enqueued AI refinement")
         except Exception as e:
-            logger.error(f"Failed to enqueue inbound email: {e}")
-            return {"success": False, "error": str(e)}
+            logger.warning(f"Could not enqueue background AI refinement: {e}")
+
+        return {
+            "success": True,
+            "sender": sender_email,
+            "subject": subject,
+            "conversationId": conversation.id,
+            "messageId": inbound_msg.id,
+            "attachmentCount": len(attachments),
+            "attachments": [{"filename": a["filename"], "url": a.get("url", "")} for a in attachments],
+        }
