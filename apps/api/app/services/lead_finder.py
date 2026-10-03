@@ -117,16 +117,27 @@ class LeadFinderService:
         # 1. Gather raw business candidates from multiple free engines
         candidates: list[dict[str, Any]] = []
 
-        # A. Check if user configured optional Google Places / Serper key
+        # A1. Check if user configured optional Google Places / Serper key (2,500 free queries, $0, no CC)
         serper_key = os.environ.get("SERPER_API_KEY")
         if serper_key:
             serper_candidates = await self._query_serper(niche_clean, location_clean, limit * 2, serper_key)
             candidates.extend(serper_candidates)
 
+        # A2. Check if user configured optional Brave Search key (2,000 free queries/month, $0, no CC)
+        brave_key = os.environ.get("BRAVE_API_KEY")
+        if brave_key and len(candidates) < limit * 2:
+            brave_candidates = await self._query_brave(niche_clean, location_clean, (limit * 2) - len(candidates), brave_key)
+            candidates.extend(brave_candidates)
+
         # B. DuckDuckGo targeted direct search (Decodes uddg + excludes directories)
         if len(candidates) < limit * 2:
             ddg_candidates = await self._query_duckduckgo(niche_clean, location_clean, (limit * 2) - len(candidates))
             candidates.extend(ddg_candidates)
+
+        # B2. DuckDuckGo Lite fallback (lower bot protection)
+        if len(candidates) < limit * 2:
+            lite_candidates = await self._query_duckduckgo_lite(niche_clean, location_clean, (limit * 2) - len(candidates))
+            candidates.extend(lite_candidates)
 
         # C. OpenStreetMap Nominatim + Overpass bounding box
         if len(candidates) < limit * 2:
@@ -213,6 +224,38 @@ class LeadFinderService:
             logger.warning(f"Serper API query error: {e}")
         return results
 
+    async def _query_brave(self, niche: str, location: str, target_count: int, api_key: str) -> list[dict[str, Any]]:
+        """Optional: Query Brave Search API (2,000 free queries/month, $0.00, no CC required)."""
+        results = []
+        city = location.split(",")[0].strip()
+        search_query = f'{niche} in {city} contact -site:yelp.com -site:yellowpages.com'
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
+                    params={"q": search_query, "count": min(target_count, 20)},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data.get("web", {}).get("results", []):
+                        url = item.get("url", "")
+                        domain = self._extract_domain(url)
+                        if domain and not any(ign in domain for ign in IGNORED_DOMAINS):
+                            results.append({
+                                "business_name": item.get("title", domain.title()).split("|")[0].split(" - ")[0].strip(),
+                                "website": url,
+                                "email": None,
+                                "phone": None,
+                                "city": city,
+                                "state": location.split(",")[1].strip() if "," in location else "",
+                                "category": niche.title(),
+                                "first_name": None,
+                            })
+        except Exception as e:
+            logger.warning(f"Brave Search API error: {e}")
+        return results
+
     async def _query_duckduckgo(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
         """
         Query DuckDuckGo HTML engine using negative directory filters and decoding uddg redirects.
@@ -281,6 +324,45 @@ class LeadFinderService:
         except Exception as e:
             logger.warning(f"DuckDuckGo search error: {e}")
 
+        return results
+
+    async def _query_duckduckgo_lite(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
+        """Fallback to DuckDuckGo Lite (lower bot filtering, pure HTML). 100% Free."""
+        results = []
+        city = location.split(",")[0].strip()
+        search_query = f'{niche} in {city} contact -site:yelp.com -site:yellowpages.com'
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://lite.duckduckgo.com/lite/",
+                    data={"q": search_query},
+                    headers=self.headers,
+                )
+                if resp.status_code == 200:
+                    html = resp.text
+                    matches = re.findall(r'<a[^>]+class="result-link"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL)
+                    for raw_href, raw_title in matches:
+                        uddg_match = re.search(r'[?&]uddg=([^&]+)', raw_href)
+                        target_url = urllib.parse.unquote(uddg_match.group(1)) if uddg_match else raw_href
+                        domain = self._extract_domain(target_url)
+                        if not domain or any(ign in domain for ign in IGNORED_DOMAINS):
+                            continue
+                        clean_title = re.sub(r'<[^>]+>', '', raw_title).strip()
+                        biz_title = clean_title.split("|")[0].split(" - ")[0].strip() or domain.title()
+                        results.append({
+                            "business_name": biz_title,
+                            "website": target_url,
+                            "email": None,
+                            "phone": None,
+                            "city": city,
+                            "state": location.split(",")[1].strip() if "," in location else "",
+                            "category": niche.title(),
+                            "first_name": None,
+                        })
+                        if len(results) >= target_count:
+                            break
+        except Exception as e:
+            logger.debug(f"DuckDuckGo Lite error: {e}")
         return results
 
     async def _query_openstreetmap(self, niche: str, location: str, target_count: int) -> list[dict[str, Any]]:
