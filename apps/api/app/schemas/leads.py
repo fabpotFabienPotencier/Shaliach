@@ -41,3 +41,11 @@ class BulkLeadActionSchema(BaseModel):
     crmStatus: CrmStatus | None = None
     campaignId: str | None = None
     suppressionReason: str | None = None
+
+
+class DiscoverLeadsSchema(BaseModel):
+    niche: str = Field(min_length=2)
+    location: str = Field(min_length=2)
+    limit: int = Field(default=20, ge=1, le=100)
+    saveToDb: bool = Field(default=True)
+    leadListId: str | None = None

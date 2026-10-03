@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import get_current_user
 from ..models.user import User
-from ..schemas.leads import LeadFilterParams, UpdateLeadSchema, BulkLeadActionSchema
+from ..schemas.leads import LeadFilterParams, UpdateLeadSchema, BulkLeadActionSchema, DiscoverLeadsSchema
 from ..services.audit_service import AuditService
 from ..services.leads_service import LeadsService
+from ..services.lead_finder import LeadFinderService
 
 router = APIRouter(prefix="/api/leads", tags=["Leads"])
 
@@ -67,3 +68,19 @@ async def bulk_action(
     current_user: User = Depends(get_current_user),
 ):
     return await service.bulk_action(dto, current_user.id)
+
+
+@router.post("/discover")
+async def discover_leads(
+    dto: DiscoverLeadsSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    finder = LeadFinderService(db)
+    return await finder.discover_leads(
+        niche=dto.niche,
+        location=dto.location,
+        limit=dto.limit,
+        save_to_db=dto.saveToDb,
+        lead_list_id=dto.leadListId,
+    )

@@ -36,6 +36,9 @@ import {
   Mail,
   Globe,
   MapPin,
+  Sparkles,
+  Loader2,
+  Check,
 } from 'lucide-react';
 
 export default function LeadsPage() {
@@ -46,6 +49,13 @@ export default function LeadsPage() {
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
+
+  // Free Lead Discovery Modal State
+  const [isDiscoverModalOpen, setIsDiscoverModalOpen] = useState(false);
+  const [discoverNiche, setDiscoverNiche] = useState('Plumbers');
+  const [discoverLocation, setDiscoverLocation] = useState('Boston, MA');
+  const [discoverLimit, setDiscoverLimit] = useState(20);
+  const [discoverResult, setDiscoverResult] = useState<any | null>(null);
 
   const queryParams = new URLSearchParams();
   if (search) queryParams.set('search', search);
@@ -72,6 +82,32 @@ export default function LeadsPage() {
       }
     },
   });
+
+  const discoverMutation = useMutation({
+    mutationFn: (body: any) =>
+      apiFetch('/api/leads/discover', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (res: any) => {
+      setDiscoverResult(res);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      refetch();
+    },
+    onError: (err: any) => {
+      alert(`Discovery failed: ${err.message}`);
+    },
+  });
+
+  const handleStartDiscovery = () => {
+    setDiscoverResult(null);
+    discoverMutation.mutate({
+      niche: discoverNiche,
+      location: discoverLocation,
+      limit: Number(discoverLimit) || 20,
+      saveToDb: true,
+    });
+  };
 
   const columns: Column<any>[] = [
     {
@@ -170,6 +206,10 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button size="sm" onClick={() => setIsDiscoverModalOpen(true)} className="bg-primary text-primary-foreground font-medium shadow-sm">
+            <Sparkles className="h-4 w-4 mr-1.5 text-amber-300" />
+            Find Leads (Free)
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCsv}>
             <Download className="h-4 w-4 mr-1.5" />
             Export Cleaned CSV
@@ -369,6 +409,123 @@ export default function LeadsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Free Lead Discovery Modal */}
+      <Dialog open={isDiscoverModalOpen} onOpenChange={setIsDiscoverModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-lg font-bold">
+              <Sparkles className="h-5 w-5 mr-2 text-primary" />
+              Autonomous Lead Discovery ($0.00)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Search open business registries and deeply crawl company websites to extract verified emails and owner names with zero subscriptions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1">
+                Target Business Niche
+              </label>
+              <Input
+                value={discoverNiche}
+                onChange={(e) => setDiscoverNiche(e.target.value)}
+                placeholder="e.g. Plumbers, Accountants, Dentists, Roofers"
+                className="text-xs"
+                disabled={discoverMutation.isPending}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1">
+                City / Location
+              </label>
+              <Input
+                value={discoverLocation}
+                onChange={(e) => setDiscoverLocation(e.target.value)}
+                placeholder="e.g. Boston, MA or Dallas, TX or Miami, FL"
+                className="text-xs"
+                disabled={discoverMutation.isPending}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1">
+                Max Leads to Extract
+              </label>
+              <Input
+                type="number"
+                min={5}
+                max={100}
+                value={discoverLimit}
+                onChange={(e) => setDiscoverLimit(Number(e.target.value))}
+                className="text-xs"
+                disabled={discoverMutation.isPending}
+              />
+            </div>
+
+            {discoverMutation.isPending && (
+              <div className="p-4 rounded-xl border bg-muted/40 text-center space-y-2">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                <div className="text-xs font-semibold text-foreground">
+                  Searching open registries & crawling websites...
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Deeply inspecting contact pages and extracting verified emails. This takes 10–25 seconds.
+                </div>
+              </div>
+            )}
+
+            {discoverResult && (
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 space-y-2">
+                <div className="flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <Check className="h-4 w-4 mr-1.5" />
+                  Extraction Complete!
+                </div>
+                <div className="text-xs">
+                  Found <strong>{discoverResult.totalFound}</strong> verified businesses.
+                  {discoverResult.savedToDatabase > 0 && (
+                    <span> <strong>{discoverResult.savedToDatabase}</strong> new leads were added directly to your database!</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex justify-between sm:justify-between border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsDiscoverModalOpen(false);
+                setDiscoverResult(null);
+              }}
+              disabled={discoverMutation.isPending}
+            >
+              Close
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleStartDiscovery}
+              disabled={discoverMutation.isPending || !discoverNiche.trim() || !discoverLocation.trim()}
+              className="bg-primary text-primary-foreground font-semibold"
+            >
+              {discoverMutation.isPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Scraping Leads...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-300" />
+                  Find Leads Now
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
