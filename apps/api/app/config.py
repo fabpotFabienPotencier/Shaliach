@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     SENTRY_ENVIRONMENT: str = "production"
 
+    # ── Lead Discovery (Serper / Brave) ───────────────────────
+    SERPER_API_KEY: str = ""
+    BRAVE_API_KEY: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     @property

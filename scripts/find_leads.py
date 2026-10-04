@@ -26,6 +26,12 @@ api_dir = os.path.join(repo_root, "apps", "api")
 if api_dir not in sys.path:
     sys.path.insert(0, api_dir)
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(repo_root, ".env"))
+except ImportError:
+    pass
+
 from app.services.lead_finder import LeadFinderService
 
 
@@ -33,8 +39,8 @@ def print_banner():
     banner = r"""
   =============================================================
      SHALIACH AI — ZERO-COST BUSINESS LEAD DISCOVERY ENGINE
-     Source: OpenStreetMap Global Registry + Deep Website Crawler
-     Cost: $0.00 | No Subscriptions | Direct Verified Contacts
+     Source: Google Maps (Serper) + OpenStreetMap + Deep Crawler
+     Cost: $0.00 | Direct Verified Contacts & Emails
   =============================================================
 """
     print(banner)

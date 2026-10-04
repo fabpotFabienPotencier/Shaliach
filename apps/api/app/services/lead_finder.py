@@ -119,12 +119,26 @@ class LeadFinderService:
 
         # A1. Check if user configured optional Google Places / Serper key (2,500 free queries, $0, no CC)
         serper_key = os.environ.get("SERPER_API_KEY")
+        if not serper_key:
+            try:
+                from ..config import get_settings
+                serper_key = get_settings().SERPER_API_KEY
+            except Exception:
+                pass
+
         if serper_key:
             serper_candidates = await self._query_serper(niche_clean, location_clean, limit * 2, serper_key)
             candidates.extend(serper_candidates)
 
         # A2. Check if user configured optional Brave Search key (2,000 free queries/month, $0, no CC)
         brave_key = os.environ.get("BRAVE_API_KEY")
+        if not brave_key:
+            try:
+                from ..config import get_settings
+                brave_key = get_settings().BRAVE_API_KEY
+            except Exception:
+                pass
+
         if brave_key and len(candidates) < limit * 2:
             brave_candidates = await self._query_brave(niche_clean, location_clean, (limit * 2) - len(candidates), brave_key)
             candidates.extend(brave_candidates)
