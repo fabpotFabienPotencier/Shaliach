@@ -12,7 +12,7 @@ from ..models.sender_profile import SenderProfile
 from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..schemas.campaigns import CreateCampaignSchema, UpdateCampaignSchema, CampaignStatusActionSchema
-from ..enums import CampaignStatus, CampaignMode, CampaignRecipientStatus, ValidationStatus
+from ..enums import CampaignStatus, CampaignMode, CampaignRecipientStatus, ValidationStatus, CrmStatus
 from ..errors import NotFoundError, ValidationError
 from ..queue import get_queue
 from .audit_service import AuditService
@@ -153,10 +153,18 @@ class CampaignsService:
         # Resolve target leads
         lead_ids_set = set(dto.leadIds or [])
 
+        # Strict uncontacted filter: ONLY include fresh, uncontacted leads (IMPORTED or VALIDATED stage in CRM)
+        # NEVER include leads that have already been contacted, replied, won, lost, or suppressed
+        uncontacted_filter = [
+            Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+            Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+            Lead.last_contacted_at.is_(None),
+        ]
+
         if dto.leadListIds:
             list_stmt = select(Lead.id).where(
                 Lead.lead_list_id.in_(dto.leadListIds),
-                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                *uncontacted_filter,
             )
             result = await self.db.execute(list_stmt)
             for lid in result.scalars().all():
@@ -165,25 +173,31 @@ class CampaignsService:
         elif getattr(dto, "category", None):
             cat_stmt = select(Lead.id).where(
                 Lead.category.ilike(f"%{dto.category}%"),
-                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                *uncontacted_filter,
             )
             result = await self.db.execute(cat_stmt)
             for lid in result.scalars().all():
                 lead_ids_set.add(lid)
 
-        # Fallback: if no specific leads, lists, or category provided,
-        # only include leads that have NOT yet been enrolled in any other campaign
         elif not lead_ids_set:
             enrolled_subquery = select(CampaignRecipient.lead_id).distinct()
             available_stmt = select(Lead.id).where(
-                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                *uncontacted_filter,
                 Lead.id.not_in(enrolled_subquery),
             )
             result = await self.db.execute(available_stmt)
             for lid in result.scalars().all():
                 lead_ids_set.add(lid)
 
-        target_lead_ids = list(lead_ids_set)
+        # Safety pass: Even if specific leadIds were passed, strictly verify they are uncontacted
+        if lead_ids_set:
+            safe_leads_stmt = select(Lead.id).where(
+                Lead.id.in_(lead_ids_set),
+                *uncontacted_filter,
+            )
+            target_lead_ids = list((await self.db.execute(safe_leads_stmt)).scalars().all())
+        else:
+            target_lead_ids = []
 
         # Get default sender profile if not provided
         sender_profile_id = dto.senderProfileId
@@ -314,7 +328,9 @@ class CampaignsService:
             total_recs = (await self.db.execute(count_stmt)).scalar() or 0
             if total_recs == 0:
                 stmt_leads = select(Lead.id).where(
-                    Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value])
+                    Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                    Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+                    Lead.last_contacted_at.is_(None),
                 )
                 val_lead_ids = (await self.db.execute(stmt_leads)).scalars().all()
                 if val_lead_ids:

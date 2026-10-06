@@ -312,18 +312,18 @@ export default function CampaignsPage() {
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground">Target Lead List</label>
-                <span className="text-[10px] text-muted-foreground">Select niche batch</span>
+                <span className="text-[10px] text-green-600 font-medium">Fresh Uncontacted Only</span>
               </div>
               <select
                 value={selectedLeadListId}
                 onChange={(e) => setSelectedLeadListId(e.target.value)}
                 className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
               >
-                <option value="">All Unenrolled Leads (Only leads not already in a campaign)</option>
+                <option value="">All Fresh Uncontacted Leads (Excludes already contacted)</option>
                 {Array.isArray(leadListsData) &&
                   leadListsData.map((list: any) => (
                     <option key={list.id} value={list.id}>
-                      {list.name} ({list.leadCount} leads)
+                      {list.name} — {list.uncontactedCount ?? list.leadCount} uncontacted leads
                     </option>
                   ))}
               </select>

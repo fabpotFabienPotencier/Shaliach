@@ -281,7 +281,15 @@ class LeadsService:
             await self.db.commit()
 
         elif action == "ADD_TO_CAMPAIGN" and dto.campaignId:
-            for lid in lead_ids:
+            # Only add leads that are fresh/uncontacted and not suppressed
+            eligible_stmt = select(Lead.id).where(
+                Lead.id.in_(lead_ids),
+                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+                Lead.last_contacted_at.is_(None),
+            )
+            eligible_lids = (await self.db.execute(eligible_stmt)).scalars().all()
+            for lid in eligible_lids:
                 # Check if recipient already exists
                 check = await self.db.execute(
                     select(CampaignRecipient).where(
@@ -366,7 +374,11 @@ class LeadsService:
                 LeadList.id,
                 LeadList.name,
                 LeadList.created_at,
-                func.count(Lead.id).label("lead_count"),
+                func.count(Lead.id).label("total_leads"),
+                func.count(Lead.id).filter(
+                    Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+                    Lead.last_contacted_at.is_(None),
+                ).label("uncontacted_leads"),
             )
             .outerjoin(Lead, Lead.lead_list_id == LeadList.id)
             .group_by(LeadList.id, LeadList.name, LeadList.created_at)
@@ -379,6 +391,7 @@ class LeadsService:
                 "id": r[0],
                 "name": r[1],
                 "leadCount": r[3],
+                "uncontactedCount": r[4],
                 "createdAt": r[2].isoformat() if r[2] else None,
             }
             for r in rows
