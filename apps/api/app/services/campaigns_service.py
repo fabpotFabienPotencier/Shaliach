@@ -162,12 +162,24 @@ class CampaignsService:
             for lid in result.scalars().all():
                 lead_ids_set.add(lid)
 
-        # Fallback: if no specific leads or lead lists were provided, automatically include all available VALID/RISKY leads
-        if not lead_ids_set:
-            all_valid_stmt = select(Lead.id).where(
+        elif getattr(dto, "category", None):
+            cat_stmt = select(Lead.id).where(
+                Lead.category.ilike(f"%{dto.category}%"),
                 Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
             )
-            result = await self.db.execute(all_valid_stmt)
+            result = await self.db.execute(cat_stmt)
+            for lid in result.scalars().all():
+                lead_ids_set.add(lid)
+
+        # Fallback: if no specific leads, lists, or category provided,
+        # only include leads that have NOT yet been enrolled in any other campaign
+        elif not lead_ids_set:
+            enrolled_subquery = select(CampaignRecipient.lead_id).distinct()
+            available_stmt = select(Lead.id).where(
+                Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                Lead.id.not_in(enrolled_subquery),
+            )
+            result = await self.db.execute(available_stmt)
             for lid in result.scalars().all():
                 lead_ids_set.add(lid)
 

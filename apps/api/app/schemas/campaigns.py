@@ -19,6 +19,7 @@ class CreateCampaignSchema(BaseModel):
     templateBodyHtml: str | None = None
     leadIds: list[str] | None = None
     leadListIds: list[str] | None = None
+    category: str | None = None
     scheduledAt: datetime | None = None
 
 

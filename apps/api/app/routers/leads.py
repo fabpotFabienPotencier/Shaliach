@@ -42,6 +42,14 @@ async def export_leads(
     )
 
 
+@router.get("/lists")
+async def get_lead_lists(
+    service: LeadsService = Depends(get_leads_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.get_lead_lists()
+
+
 @router.get("/{lead_id}")
 async def get_lead(
     lead_id: str,

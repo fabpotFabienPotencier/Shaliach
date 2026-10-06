@@ -337,3 +337,49 @@ class LeadsService:
             })
 
         return output.getvalue()
+
+    async def get_lead_lists(self) -> list[dict]:
+        """Fetch all organized lead lists with accurate member counts, auto-grouping unlinked batches."""
+        from ..models.lead_list import LeadList
+
+        # Auto-organize unlinked leads with a category into lists
+        try:
+            unlinked_stmt = select(Lead).where(Lead.lead_list_id.is_(None), Lead.category.is_not(None))
+            unlinked_leads = (await self.db.execute(unlinked_stmt)).scalars().all()
+            if unlinked_leads:
+                for l in unlinked_leads:
+                    loc = f", {l.state}" if l.state else ""
+                    list_name = f"{l.category} — {l.city or 'General'}{loc}"
+                    l_stmt = select(LeadList).where(LeadList.name == list_name)
+                    tgt_list = (await self.db.execute(l_stmt)).scalar_one_or_none()
+                    if not tgt_list:
+                        tgt_list = LeadList(name=list_name)
+                        self.db.add(tgt_list)
+                        await self.db.flush()
+                    l.lead_list_id = tgt_list.id
+                await self.db.commit()
+        except Exception as e:
+            logger.warning(f"Error auto-organizing unlinked leads: {e}")
+
+        stmt = (
+            select(
+                LeadList.id,
+                LeadList.name,
+                LeadList.created_at,
+                func.count(Lead.id).label("lead_count"),
+            )
+            .outerjoin(Lead, Lead.lead_list_id == LeadList.id)
+            .group_by(LeadList.id, LeadList.name, LeadList.created_at)
+            .order_by(desc(LeadList.created_at))
+        )
+        result = await self.db.execute(stmt)
+        rows = result.all()
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "leadCount": r[3],
+                "createdAt": r[2].isoformat() if r[2] else None,
+            }
+            for r in rows
+        ]

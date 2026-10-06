@@ -48,11 +48,18 @@ export default function CampaignsPage() {
     'Hi {{first_name}},\n\nI noticed {{business_name}} has great reviews in {{city}}. I help businesses modernize their websites to convert more local visitors.\n\nBest,\nJoshua Caleb',
   );
 
+  const [selectedLeadListId, setSelectedLeadListId] = useState('');
+
   const { data, isLoading } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => apiFetch('/api/campaigns'),
     refetchInterval: (query: any) =>
       query.state.data?.items?.some((c: any) => c.status === 'GENERATING') ? 4000 : false,
+  });
+
+  const { data: leadListsData } = useQuery({
+    queryKey: ['lead-lists'],
+    queryFn: () => apiFetch('/api/leads/lists'),
   });
 
   const deleteCampaignMutation = useMutation({
@@ -100,6 +107,7 @@ export default function CampaignsPage() {
       description,
       mode,
       dailySendLimit,
+      leadListIds: selectedLeadListId ? [selectedLeadListId] : undefined,
       promptGuidelines: mode === 'AI_GENERATED' ? promptGuidelines : undefined,
       templateSubject: mode === 'MANUAL_TEMPLATE' ? templateSubject : undefined,
       templateBodyText: mode === 'MANUAL_TEMPLATE' ? templateBodyText : undefined,
@@ -299,6 +307,26 @@ export default function CampaignsPage() {
                 placeholder="e.g. Florida HVAC & Plumbing Outreach - Q2"
                 className="h-8 text-xs"
               />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-foreground">Target Lead List</label>
+                <span className="text-[10px] text-muted-foreground">Select niche batch</span>
+              </div>
+              <select
+                value={selectedLeadListId}
+                onChange={(e) => setSelectedLeadListId(e.target.value)}
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="">All Unenrolled Leads (Only leads not already in a campaign)</option>
+                {Array.isArray(leadListsData) &&
+                  leadListsData.map((list: any) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} ({list.leadCount} leads)
+                    </option>
+                  ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

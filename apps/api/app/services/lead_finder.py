@@ -626,6 +626,21 @@ class LeadFinderService:
         if not self.db:
             return 0
 
+        # Auto-create or resolve a dedicated LeadList for this discovery batch
+        if not lead_list_id and leads:
+            try:
+                from ..models.lead_list import LeadList
+                list_name = f"{niche.title()} — {location.strip()}"
+                stmt = select(LeadList).where(LeadList.name == list_name)
+                existing_list = (await self.db.execute(stmt)).scalar_one_or_none()
+                if not existing_list:
+                    existing_list = LeadList(name=list_name)
+                    self.db.add(existing_list)
+                    await self.db.flush()
+                lead_list_id = existing_list.id
+            except Exception as e:
+                logger.warning(f"Could not auto-create lead list: {e}")
+
         saved = 0
         for item in leads:
             email_addr = item.get("email")
