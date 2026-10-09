@@ -18,6 +18,7 @@ import {
   CampaignMode,
   CampaignRecipientStatus,
   ValidationStatus,
+  CrmStatus,
   ErrorCode,
 } from '@shaliach/shared';
 
@@ -90,18 +91,51 @@ export class CampaignsService {
     // 1. Resolve target leads
     const leadIdsSet = new Set<string>(dto.leadIds || []);
 
+    // Strict uncontacted condition: ONLY fresh uncontacted leads (IMPORTED or VALIDATED stage)
+    const uncontactedWhere = {
+      validationStatus: { in: [ValidationStatus.VALID, ValidationStatus.RISKY] },
+      crmStatus: { in: [CrmStatus.IMPORTED, CrmStatus.VALIDATED] },
+      lastContactedAt: null,
+    };
+
     if (dto.leadListIds && dto.leadListIds.length > 0) {
       const listLeads = await this.prisma.lead.findMany({
         where: {
           leadListId: { in: dto.leadListIds },
-          validationStatus: { in: [ValidationStatus.VALID, ValidationStatus.RISKY] },
+          ...uncontactedWhere,
         },
         select: { id: true },
       });
       listLeads.forEach((l) => leadIdsSet.add(l.id));
+    } else if (leadIdsSet.size === 0) {
+      // Fallback: only include leads that have NOT yet been enrolled in any other campaign
+      const enrolled = await this.prisma.campaignRecipient.findMany({
+        select: { leadId: true },
+        distinct: ['leadId'],
+      });
+      const enrolledIds = enrolled.map((e) => e.leadId);
+      const availableLeads = await this.prisma.lead.findMany({
+        where: {
+          id: { notIn: enrolledIds },
+          ...uncontactedWhere,
+        },
+        select: { id: true },
+      });
+      availableLeads.forEach((l) => leadIdsSet.add(l.id));
     }
 
-    const targetLeadIds = Array.from(leadIdsSet);
+    // Safety pass: strictly verify all target leads are uncontacted
+    let targetLeadIds: string[] = [];
+    if (leadIdsSet.size > 0) {
+      const safeLeads = await this.prisma.lead.findMany({
+        where: {
+          id: { in: Array.from(leadIdsSet) },
+          ...uncontactedWhere,
+        },
+        select: { id: true },
+      });
+      targetLeadIds = safeLeads.map((l) => l.id);
+    }
 
     // Get default sender profile if not provided
     let senderProfileId = dto.senderProfileId;

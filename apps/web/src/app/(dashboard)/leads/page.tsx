@@ -8,6 +8,7 @@ import {
   Column,
   Button,
   Input,
+  Textarea,
   Select,
   SelectTrigger,
   SelectValue,
@@ -24,6 +25,7 @@ import {
   formatDate,
   formatCurrency,
 } from '@shaliach/ui';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Download,
@@ -39,9 +41,11 @@ import {
   Sparkles,
   Loader2,
   Check,
+  Send,
 } from 'lucide-react';
 
 export default function LeadsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [validationFilter, setValidationFilter] = useState('ALL');
@@ -99,6 +103,51 @@ export default function LeadsPage() {
     },
   });
 
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignMode, setCampaignMode] = useState<'AI_GENERATED' | 'MANUAL_TEMPLATE'>('AI_GENERATED');
+  const [campaignDailyLimit, setCampaignDailyLimit] = useState(50);
+  const [promptGuidelines, setPromptGuidelines] = useState(
+    'Focus on web development, speed optimization, and mobile-responsive conversion for local service businesses.'
+  );
+  const [templateSubject, setTemplateSubject] = useState('Quick question regarding {{business_name}}');
+  const [templateBodyText, setTemplateBodyText] = useState(
+    'Hi {{first_name}},\n\nI noticed {{business_name}} has great reviews in {{city}}. I help businesses modernize their websites to convert more local visitors.\n\nBest,\nJoshua Caleb'
+  );
+
+  const createCampaignMutation = useMutation({
+    mutationFn: (body: any) =>
+      apiFetch('/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (res: any) => {
+      alert(`Campaign "${res.name}" successfully created with ${res._count?.recipients || selectedLeadIds.length} fresh leads!`);
+      setSelectedLeadIds([]);
+      setIsCampaignModalOpen(false);
+      setCampaignName('');
+      router.push('/campaigns');
+    },
+    onError: (err: any) => {
+      alert(`Failed to create campaign: ${err.message}`);
+    },
+  });
+
+  const handleCreateCampaignFromSelected = () => {
+    if (!campaignName.trim()) return;
+    createCampaignMutation.mutate({
+      name: campaignName,
+      mode: campaignMode,
+      dailySendLimit: campaignDailyLimit,
+      leadIds: selectedLeadIds.length > 0 ? selectedLeadIds : undefined,
+      promptGuidelines: campaignMode === 'AI_GENERATED' ? promptGuidelines : undefined,
+      templateSubject: campaignMode === 'MANUAL_TEMPLATE' ? templateSubject : undefined,
+      templateBodyText: campaignMode === 'MANUAL_TEMPLATE' ? templateBodyText : undefined,
+      templateBodyHtml: campaignMode === 'MANUAL_TEMPLATE' ? `<p>${templateBodyText.replace(/\n/g, '<br/>')}</p>` : undefined,
+    });
+  };
+
   const handleStartDiscovery = () => {
     setDiscoverResult(null);
     discoverMutation.mutate({
@@ -109,7 +158,48 @@ export default function LeadsPage() {
     });
   };
 
+  const allCurrentPageSelected =
+    (data?.items?.length ?? 0) > 0 &&
+    data?.items?.every((item: any) => selectedLeadIds.includes(item.id));
+
   const columns: Column<any>[] = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          className="rounded border-input h-4 w-4 text-primary focus:ring-primary cursor-pointer accent-primary"
+          checked={!!allCurrentPageSelected}
+          onChange={(e) => {
+            if (e.target.checked) {
+              const currentIds = (data?.items || []).map((item: any) => item.id);
+              setSelectedLeadIds((prev) => Array.from(new Set([...prev, ...currentIds])));
+            } else {
+              const currentIds = new Set((data?.items || []).map((item: any) => item.id));
+              setSelectedLeadIds((prev) => prev.filter((id) => !currentIds.has(id)));
+            }
+          }}
+          aria-label="Select all leads"
+        />
+      ),
+      className: 'w-10 px-2 text-center',
+      cell: (lead) => (
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center">
+          <input
+            type="checkbox"
+            className="rounded border-input h-4 w-4 text-primary focus:ring-primary cursor-pointer accent-primary"
+            checked={selectedLeadIds.includes(lead.id)}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedLeadIds((prev) => [...prev, lead.id]);
+              } else {
+                setSelectedLeadIds((prev) => prev.filter((id) => id !== lead.id));
+              }
+            }}
+            aria-label={`Select ${lead.businessName}`}
+          />
+        </div>
+      ),
+    },
     {
       header: 'Business Name',
       cell: (lead) => (
@@ -288,6 +378,42 @@ export default function LeadsPage() {
           )}
         </div>
       </Card>
+
+      {/* Lead Selection Action Bar */}
+      {selectedLeadIds.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-primary/10 border border-primary/25 rounded-xl shadow-sm text-xs">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+            <span className="font-semibold text-foreground">
+              {selectedLeadIds.length} lead{selectedLeadIds.length > 1 ? 's' : ''} selected
+            </span>
+            <span className="text-muted-foreground hidden sm:inline">
+              · Strict safety: already-contacted leads are automatically excluded from campaigns
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                setCampaignName(`Target Outreach — ${selectedLeadIds.length} Leads`);
+                setIsCampaignModalOpen(true);
+              }}
+              className="bg-primary text-primary-foreground font-semibold h-8 text-xs shadow-sm"
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              Create Campaign for Selected ({selectedLeadIds.length})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedLeadIds([])}
+              className="h-8 text-xs"
+            >
+              Clear Selection
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Data Table */}
       <DataTable
@@ -478,7 +604,7 @@ export default function LeadsPage() {
             )}
 
             {discoverResult && (
-              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 space-y-2">
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 space-y-3">
                 <div className="flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
                   <Check className="h-4 w-4 mr-1.5" />
                   Extraction Complete!
@@ -489,6 +615,22 @@ export default function LeadsPage() {
                     <span> <strong>{discoverResult.savedToDatabase}</strong> new leads were added directly to your database!</span>
                   )}
                 </div>
+                {discoverResult.savedToDatabase > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsDiscoverModalOpen(false);
+                      setCampaignName(`${discoverNiche} Outreach — ${discoverLocation}`);
+                      setCrmFilter('IMPORTED');
+                      setSearch(discoverNiche);
+                      setIsCampaignModalOpen(true);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 shadow-sm"
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Launch Outreach Campaign for These {discoverResult.savedToDatabase} Leads
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -521,6 +663,122 @@ export default function LeadsPage() {
                   <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-300" />
                   Find Leads Now
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Campaign Modal for Selected Leads */}
+      <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center">
+              <Send className="h-5 w-5 mr-2 text-primary" />
+              New Outreach Campaign
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {selectedLeadIds.length > 0 ? (
+                <span>
+                  Targeting <strong>{selectedLeadIds.length}</strong> selected fresh leads. Contacted leads are strictly excluded.
+                </span>
+              ) : (
+                <span>Configure campaign parameters and AI personalization rules.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3 text-xs">
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Campaign Name *</label>
+              <Input
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="e.g. Boston Plumbing Outreach — Batch 1"
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Campaign Mode</label>
+                <select
+                  value={campaignMode}
+                  onChange={(e) => setCampaignMode(e.target.value as any)}
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="AI_GENERATED">Groq AI Personalized (Recommended)</option>
+                  <option value="MANUAL_TEMPLATE">Manual Template Variables</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Daily Send Limit</label>
+                <Input
+                  type="number"
+                  value={campaignDailyLimit}
+                  onChange={(e) => setCampaignDailyLimit(parseInt(e.target.value, 10))}
+                  min={1}
+                  max={2000}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {campaignMode === 'AI_GENERATED' ? (
+              <div className="space-y-1 border-t pt-3">
+                <label className="font-semibold text-foreground flex items-center">
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
+                  Groq Personalization Guidelines
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  Give instructions on pitch focus, service specialties, or value proposition.
+                </p>
+                <Textarea
+                  value={promptGuidelines}
+                  onChange={(e) => setPromptGuidelines(e.target.value)}
+                  className="min-h-[80px] text-xs mt-1"
+                />
+              </div>
+            ) : (
+              <div className="space-y-3 border-t pt-3">
+                <div className="space-y-1">
+                  <label className="font-semibold">Subject Template</label>
+                  <Input
+                    value={templateSubject}
+                    onChange={(e) => setTemplateSubject(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold">Body Template</label>
+                  <Textarea
+                    value={templateBodyText}
+                    onChange={(e) => setTemplateBodyText(e.target.value)}
+                    className="min-h-[90px] text-xs"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t pt-3">
+            <Button variant="outline" size="sm" onClick={() => setIsCampaignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCreateCampaignFromSelected}
+              disabled={!campaignName.trim() || createCampaignMutation.isPending}
+              className="bg-primary text-primary-foreground font-semibold"
+            >
+              {createCampaignMutation.isPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Campaign'
               )}
             </Button>
           </DialogFooter>

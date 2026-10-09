@@ -11,8 +11,7 @@ from ..models.campaign import Campaign, CampaignRecipient
 from ..models.sender_profile import SenderProfile
 from ..models.lead import Lead
 from ..models.email import EmailMessage
-from ..schemas.campaigns import CreateCampaignSchema, UpdateCampaignSchema, CampaignStatusActionSchema
-from ..enums import CampaignStatus, CampaignMode, CampaignRecipientStatus, ValidationStatus, CrmStatus
+from ..enums import CampaignStatus, CampaignMode, CampaignRecipientStatus, ValidationStatus, CrmStatus, EmailStatus
 from ..errors import NotFoundError, ValidationError
 from ..queue import get_queue
 from .audit_service import AuditService
@@ -150,16 +149,32 @@ class CampaignsService:
         }
 
     async def create_campaign(self, dto: CreateCampaignSchema, user_id: str | None = None) -> dict:
-        # Resolve target leads
-        lead_ids_set = set(dto.leadIds or [])
+        # Subqueries to detect any historical contact
+        sent_emails_subquery = select(EmailMessage.lead_id).where(
+            EmailMessage.status.in_([EmailStatus.SENT.value, EmailStatus.DELIVERED.value, "SENT", "DELIVERED"])
+        ).distinct()
+        
+        contacted_recipients_subquery = select(CampaignRecipient.lead_id).where(
+            CampaignRecipient.status.in_([
+                CampaignRecipientStatus.SENT.value,
+                CampaignRecipientStatus.APPROVED.value,
+                "SENT",
+                "APPROVED",
+            ])
+        ).distinct()
 
         # Strict uncontacted filter: ONLY include fresh, uncontacted leads (IMPORTED or VALIDATED stage in CRM)
         # NEVER include leads that have already been contacted, replied, won, lost, or suppressed
         uncontacted_filter = [
             Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
-            Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+            func.upper(Lead.crm_status).in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
             Lead.last_contacted_at.is_(None),
+            Lead.id.not_in(sent_emails_subquery),
+            Lead.id.not_in(contacted_recipients_subquery),
         ]
+
+        # Resolve target leads
+        lead_ids_set = set(dto.leadIds or [])
 
         if dto.leadListIds:
             list_stmt = select(Lead.id).where(
@@ -327,10 +342,18 @@ class CampaignsService:
             count_stmt = select(func.count(CampaignRecipient.id)).where(CampaignRecipient.campaign_id == campaign_id)
             total_recs = (await self.db.execute(count_stmt)).scalar() or 0
             if total_recs == 0:
+                sent_emails_sub = select(EmailMessage.lead_id).where(
+                    EmailMessage.status.in_([EmailStatus.SENT.value, EmailStatus.DELIVERED.value, "SENT", "DELIVERED"])
+                ).distinct()
+                contacted_recs_sub = select(CampaignRecipient.lead_id).where(
+                    CampaignRecipient.status.in_([CampaignRecipientStatus.SENT.value, CampaignRecipientStatus.APPROVED.value, "SENT", "APPROVED"])
+                ).distinct()
                 stmt_leads = select(Lead.id).where(
                     Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
-                    Lead.crm_status.in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
+                    func.upper(Lead.crm_status).in_([CrmStatus.IMPORTED.value, CrmStatus.VALIDATED.value]),
                     Lead.last_contacted_at.is_(None),
+                    Lead.id.not_in(sent_emails_sub),
+                    Lead.id.not_in(contacted_recs_sub),
                 )
                 val_lead_ids = (await self.db.execute(stmt_leads)).scalars().all()
                 if val_lead_ids:
@@ -345,6 +368,19 @@ class CampaignsService:
                     # Re-fetch pending recipients
                     result = await self.db.execute(rec_stmt)
                     pending_recipients = result.scalars().all()
+
+        # Safety pass on pending recipients: sanitize against any previously contacted leads
+        clean_pending = []
+        for r in pending_recipients:
+            lead_stmt = select(Lead).where(Lead.id == r.lead_id)
+            lead = (await self.db.execute(lead_stmt)).scalar_one_or_none()
+            if lead and lead.last_contacted_at is None and (lead.crm_status or "").upper() in ("IMPORTED", "VALIDATED"):
+                clean_pending.append(r)
+            else:
+                # Mark dirty recipient as skipped
+                r.status = CampaignRecipientStatus.SKIPPED.value
+        await self.db.commit()
+        pending_recipients = clean_pending
 
         prompt_guide = getattr(campaign, "prompt_guidelines", None) or getattr(campaign, "ai_prompt_notes", None)
 
