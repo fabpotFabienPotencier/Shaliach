@@ -104,12 +104,13 @@ async def init_db() -> None:
                 await conn_auto.execute(text("""
                     UPDATE leads 
                     SET business_name = COALESCE(NULLIF(first_name, ''), INITCAP(SPLIT_PART(email, '@', 1))) 
-                    WHERE business_name IN ('gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com');
-
+                    WHERE business_name IN ('gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com')
+                """))
+                await conn_auto.execute(text("""
                     UPDATE inbound_messages 
                     SET classification = 'INTERESTED' 
                     WHERE classification = 'UNSUBSCRIBE' 
-                    AND (text_body ILIKE '%fine%' OR text_body ILIKE '%fuck%' OR text_body ILIKE '%hello%' OR text_body ILIKE '%hi%');
+                    AND (text_body ILIKE '%fine%' OR text_body ILIKE '%fuck%' OR text_body ILIKE '%hello%' OR text_body ILIKE '%hi%')
                 """))
         except Exception as e:
             logger.warning(f"Database cleanup skipped: {e}")
