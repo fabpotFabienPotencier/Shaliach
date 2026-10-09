@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import get_current_user
 from ..models.user import User
-from ..schemas.inbox import SendReplySchema
+from ..schemas.inbox import SendReplySchema, ComposeMessageSchema
 from ..services.audit_service import AuditService
 from ..services.inbox_service import InboxService
 
@@ -26,6 +26,15 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
 ):
     return await service.list_conversations(limit, offset)
+
+
+@router.post("/compose")
+async def compose_message(
+    dto: ComposeMessageSchema,
+    service: InboxService = Depends(get_inbox_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.compose_message(dto, current_user.id)
 
 
 @router.get("/{conversation_id}")

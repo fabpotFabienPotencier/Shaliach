@@ -12,8 +12,8 @@ from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..models.suppression import SuppressionEntry
 from ..models.sender_profile import SenderProfile
-from ..schemas.inbox import SendReplySchema
-from ..enums import EmailStatus
+from ..schemas.inbox import SendReplySchema, ComposeMessageSchema
+from ..enums import EmailStatus, ValidationStatus, CrmStatus
 from ..errors import NotFoundError, ValidationError, ErrorCode
 from ..queue import get_queue
 from .audit_service import AuditService
@@ -229,3 +229,95 @@ class InboxService:
         )
 
         return {"success": True, "emailMessageId": email_message.id}
+
+    async def compose_message(self, dto: ComposeMessageSchema, user_id: str | None = None) -> dict:
+        normalized = dto.toEmail.lower().strip()
+
+        # Check suppression
+        supp_stmt = select(SuppressionEntry).where(SuppressionEntry.normalized_email == normalized)
+        supp = (await self.db.execute(supp_stmt)).scalar_one_or_none()
+        if supp:
+            raise ValidationError("Cannot send email: recipient address is globally suppressed")
+
+        # Find or create lead
+        lead_stmt = select(Lead).where(Lead.normalized_email == normalized)
+        lead = (await self.db.execute(lead_stmt)).scalar_one_or_none()
+        if not lead:
+            lead = Lead(
+                email=dto.toEmail.strip(),
+                normalized_email=normalized,
+                business_name=normalized.split("@")[0].replace(".", " ").replace("-", " ").title(),
+                validation_status=ValidationStatus.VALID.value,
+                crm_status=dto.crmStatus.value if dto.crmStatus else CrmStatus.CONTACTED.value,
+            )
+            self.db.add(lead)
+            await self.db.flush()
+        elif dto.crmStatus:
+            lead.crm_status = dto.crmStatus.value
+
+        # Find or create conversation
+        conv_stmt = select(Conversation).where(Conversation.lead_id == lead.id)
+        conv = (await self.db.execute(conv_stmt)).scalar_one_or_none()
+        if not conv:
+            conv = Conversation(
+                lead_id=lead.id,
+                subject=dto.subject,
+                message_count=1,
+                last_message_at=datetime.now(timezone.utc),
+            )
+            self.db.add(conv)
+            await self.db.flush()
+        else:
+            conv.message_count = (conv.message_count or 0) + 1
+            conv.last_message_at = datetime.now(timezone.utc)
+
+        # Look up default SenderProfile
+        sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
+        sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+
+        from_email = sender_profile.from_email if sender_profile else "outreach@fixhubtech.com"
+        from_name = sender_profile.from_name if sender_profile else "Joshua Caleb"
+        reply_to_email = sender_profile.reply_to_email if sender_profile else "outreach@fixhubtech.com"
+
+        body_html = dto.bodyHtml or f"<p>{dto.bodyText.replace(chr(10), '<br/>')}</p>"
+
+        # Create outgoing EmailMessage
+        idempotency_key = secrets.token_hex(16)
+        email_message = EmailMessage(
+            lead_id=lead.id,
+            from_email=from_email,
+            from_name=from_name,
+            reply_to_email=reply_to_email,
+            to_email=lead.email,
+            subject=dto.subject,
+            text_body=dto.bodyText,
+            html_body=body_html,
+            attachments=dto.attachments or [],
+            status=EmailStatus.APPROVED.value,
+            idempotency_key=idempotency_key,
+        )
+        self.db.add(email_message)
+        await self.db.commit()
+
+        # Enqueue sending task
+        try:
+            queue = await get_queue()
+            await queue.enqueue_job(
+                "send_reply",
+                email_message_id=email_message.id,
+                conversation_id=conv.id,
+                lead_id=lead.id,
+                _job_id=f"direct-{email_message.id}",
+            )
+        except Exception as e:
+            logger.warning(f"Could not enqueue direct email in ARQ: {e}")
+
+        await self.audit.log(
+            action="COMPOSE_DIRECT_EMAIL",
+            entity_type="Conversation",
+            entity_id=conv.id,
+            user_id=user_id,
+            metadata={"toEmail": lead.email, "subject": dto.subject},
+        )
+
+        return {"success": True, "conversationId": conv.id, "emailMessageId": email_message.id}

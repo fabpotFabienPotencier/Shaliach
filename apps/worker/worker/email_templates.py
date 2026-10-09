@@ -33,7 +33,7 @@ def render_fixhubtech_html_email(
     website_url: str = "https://fixhubtech.com",
     unsubscribe_url: str | None = None,
 ) -> str:
-    unsub_link = f'<p style="font-size: 11px; color: #888; margin-top: 32px;"><a href="{unsubscribe_url}" style="color: #888;">Unsubscribe</a> from future emails.</p>' if unsubscribe_url else ""
+    unsub_link = f'<p style="font-size: 11px; color: #9ca3af; margin-top: 24px; font-family: sans-serif;">If you would rather not hear from me, feel free to <a href="{unsubscribe_url}" style="color: #9ca3af; text-decoration: underline;">unsubscribe here</a>.</p>' if unsubscribe_url else ""
 
     return f"""<!DOCTYPE html>
 <html>
@@ -41,15 +41,16 @@ def render_fixhubtech_html_email(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #222; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #1f2937; margin: 0; padding: 0;">
+  <div style="font-size: 14px; color: #1f2937; line-height: 1.5;">
     {body_html}
-    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #eaeaea; font-size: 13px; color: #555;">
-      <strong>{sender_name}</strong><br>
-      {sender_title} &bull; <a href="{website_url}" style="color: #0066cc; text-decoration: none;">{company_name}</a>
-    </div>
-    {unsub_link}
   </div>
+  <div style="margin-top: 18px; font-size: 13px; color: #374151; font-family: sans-serif;">
+    <p style="margin: 0;">Best regards,</p>
+    <p style="margin: 2px 0 0 0; font-weight: 600; color: #111827;">{sender_name}</p>
+    <p style="margin: 2px 0 0 0; color: #4b5563;">{sender_title} &bull; <a href="{website_url}" style="color: #2563eb; text-decoration: none;">{company_name}</a></p>
+  </div>
+  {unsub_link}
 </body>
 </html>"""
 

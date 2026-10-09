@@ -33,7 +33,7 @@ def clean_sender_address(name: str | None, email_or_full: str | None) -> str:
 
 def clean_email_only(raw_str: str | None) -> str:
     if not raw_str:
-        return "joshua@reply.fixhubtech.com"
+        return "outreach@fixhubtech.com"
     raw_str = raw_str.strip().strip('"').strip("'")
     match = re.search(r"<([^>]+)>", raw_str)
     if match:
