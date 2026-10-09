@@ -11,6 +11,7 @@ from ..models.campaign import Campaign, CampaignRecipient
 from ..models.sender_profile import SenderProfile
 from ..models.lead import Lead
 from ..models.email import EmailMessage
+from ..schemas.campaigns import CreateCampaignSchema, UpdateCampaignSchema, CampaignStatusActionSchema
 from ..enums import CampaignStatus, CampaignMode, CampaignRecipientStatus, ValidationStatus, CrmStatus, EmailStatus
 from ..errors import NotFoundError, ValidationError
 from ..queue import get_queue
