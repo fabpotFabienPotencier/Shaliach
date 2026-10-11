@@ -21,6 +21,8 @@ from .tasks.email_send import send_email, send_reply
 from .tasks.webhook import process_resend_event
 from .tasks.inbound_email import process_inbound_reply
 from .tasks.analytics import process_analytics
+from .tasks.autopilot import auto_discover_leads, auto_drip_outreach, telegram_bot_listener_loop
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,7 +52,12 @@ async def startup(ctx: dict):
     _heartbeat_task = asyncio.create_task(heartbeat_loop())
     logger.info("Background heartbeat active (every 15s)")
 
+    # Start Telegram interactive bot listener in background
+    asyncio.create_task(telegram_bot_listener_loop())
+    logger.info("Telegram interactive command listener active")
+
     # Recover any imports left PENDING while worker was restarting/down
+
     asyncio.create_task(_recover_stuck_imports())
     # Recover any campaigns left in GENERATING state
     asyncio.create_task(_recover_stuck_campaigns())
@@ -167,11 +174,16 @@ class WorkerSettings:
         process_resend_event,
         process_inbound_reply,
         process_analytics,
+        auto_discover_leads,
+        auto_drip_outreach,
     ]
     cron_jobs = [
         cron(process_analytics, minute={0, 15, 30, 45}),
+        cron(auto_discover_leads, minute={12, 42}),
+        cron(auto_drip_outreach, minute={5, 15, 25, 35, 45, 55}),
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+
     max_jobs = 20
     job_timeout = 300  # 5 minutes
     on_startup = startup

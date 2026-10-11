@@ -1,0 +1,340 @@
+"""
+Shaliach AI — Autopilot Engine & Telegram Interactive Bot Controller.
+Handles:
+1. Scheduled continuous lead discovery across rotating high-converting niches.
+2. Safe human-paced drip outreach (max 40 emails/day to ensure 100% deliverability).
+3. Live Telegram command listener (/stats, /find, /pause, /resume).
+"""
+
+import asyncio
+from datetime import datetime, timezone
+import html
+import logging
+import re
+import secrets
+import httpx
+from sqlalchemy import select, func, and_
+
+from app.config import get_settings
+from app.database import async_session_factory
+from app.redis_client import get_redis
+from app.models.lead import Lead
+from app.models.campaign import Campaign
+from app.models.email import EmailMessage
+from app.models.conversation import InboundMessage
+from app.enums import ValidationStatus, CrmStatus, EmailStatus
+from app.services.lead_finder import LeadFinderService
+from app.services.telegram_service import get_telegram_service
+from ..ai_provider import GroqAiProvider
+
+logger = logging.getLogger("shaliach.worker.autopilot")
+
+TARGET_NICHES = [
+    "marketing agency",
+    "web design",
+    "commercial roofing",
+    "hvac",
+    "accountant",
+    "dental clinic",
+    "plumbing",
+    "electrician",
+]
+
+TARGET_CITIES = [
+    "Boston, MA",
+    "Dallas, TX",
+    "Austin, TX",
+    "Atlanta, GA",
+    "Miami, FL",
+    "Chicago, IL",
+    "Denver, CO",
+    "Phoenix, AZ",
+    "Houston, TX",
+]
+
+
+async def auto_discover_leads(ctx: dict) -> dict:
+    """Scheduled task: Discovers fresh verified leads on rotation and alerts Telegram."""
+    redis = get_redis()
+    is_paused = await redis.get("autopilot:discovery:paused")
+    if is_paused:
+        logger.info("Autopilot lead discovery is paused.")
+        return {"status": "paused"}
+
+    # Rotate through niche and city combinations
+    idx = int(await redis.get("autopilot:rotation_idx") or 0)
+    niche = TARGET_NICHES[idx % len(TARGET_NICHES)]
+    city = TARGET_CITIES[(idx // len(TARGET_NICHES)) % len(TARGET_CITIES)]
+    await redis.set("autopilot:rotation_idx", str(idx + 1))
+
+    logger.info(f"Autopilot discovering leads for niche='{niche}', city='{city}'")
+
+    async with async_session_factory() as db:
+        finder = LeadFinderService(db=db)
+        result = await finder.discover_leads(
+            niche=niche,
+            location=city,
+            limit=12,
+            save_to_db=True,
+        )
+
+        leads = result.get("leads", [])
+        if leads:
+            sample_leads = [
+                {
+                    "business_name": l.get("business_name"),
+                    "first_name": l.get("first_name"),
+                    "email": l.get("email"),
+                    "phone": l.get("phone"),
+                }
+                for l in leads[:4]
+            ]
+            tg = get_telegram_service()
+            await tg.notify_leads_discovered(
+                niche=niche,
+                location=city,
+                count=len(leads),
+                sample_leads=sample_leads,
+            )
+
+    return {"status": "completed", "niche": niche, "city": city, "found": len(leads)}
+
+
+async def auto_drip_outreach(ctx: dict) -> dict:
+    """Scheduled task: Safely sends 1 personalized outreach email at a time to prevent spam penalties."""
+    redis = get_redis()
+    is_paused = await redis.get("autopilot:drip:paused")
+    if is_paused:
+        logger.info("Autopilot drip outreach is paused.")
+        return {"status": "paused"}
+
+    # Check daily send limit (max 40 emails/day keeps sender domain 100% healthy and in free tier)
+    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    daily_count = int(await redis.get(f"outreach:daily_sent:{today_key}") or 0)
+    if daily_count >= 40:
+        logger.info(f"Daily safe threshold reached ({daily_count}/40). Resting until tomorrow.")
+        return {"status": "daily_limit_reached", "sentToday": daily_count}
+
+    # Only send during standard business hours (13:00 to 22:00 UTC = 9 AM to 6 PM US)
+    now_utc = datetime.now(timezone.utc)
+    if not (12 <= now_utc.hour <= 22):
+        logger.info(f"Outside US business hours (current UTC hour: {now_utc.hour}). Pausing drip.")
+        return {"status": "outside_hours"}
+
+    async with async_session_factory() as db:
+        # Find 1 fresh uncontacted valid lead
+        stmt = (
+            select(Lead)
+            .where(
+                and_(
+                    Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
+                    Lead.crm_status == CrmStatus.IMPORTED.value,
+                    Lead.last_contacted_at.is_(None),
+                )
+            )
+            .order_by(Lead.created_at.desc())
+            .limit(1)
+        )
+        lead = (await db.execute(stmt)).scalar_one_or_none()
+        if not lead:
+            return {"status": "no_pending_leads"}
+
+        # Generate outreach email via Groq AI
+        ai = GroqAiProvider()
+        biz_name = lead.business_name or "there"
+        first_name = lead.first_name or ""
+        niche = lead.category or "business"
+
+        prompt = (
+            f"Write a short, conversational 1-to-1 cold outreach email to {first_name or biz_name} ({niche}). "
+            f"Our company is Fixhubtech (founded by Joshua Caleb). We build high-performance web systems, "
+            f"automated lead capture, and API infrastructure. "
+            f"Keep it under 90 words. Sound like a real founder writing a personal note. Do not use buzzwords. "
+            f"Offer a quick 5-minute chat or brief preview."
+        )
+
+        try:
+            gen_res = await ai.generate_outreach(
+                prospect_name=first_name or biz_name,
+                company_name=biz_name,
+                industry=niche,
+                prompt_guidelines=prompt,
+            )
+            subject = gen_res.get("subject") or f"Quick question regarding {biz_name}"
+            body_text = gen_res.get("textBody") or f"Hi {first_name or 'there'},\n\nI was reviewing {biz_name} and wanted to see if your team has capacity for web & API automation enhancements this quarter.\n\nBest,\nJoshua Caleb\nFixhubtech"
+        except Exception as e:
+            logger.warning(f"AI generation fallback: {e}")
+            subject = f"Quick question regarding {biz_name}"
+            body_text = f"Hi {first_name or 'there'},\n\nI came across {biz_name} and wanted to see if your team has capacity for backend & web infrastructure enhancements this month.\n\nBest regards,\nJoshua Caleb\nFixhubtech"
+
+        body_html = f"<p>{body_text.replace(chr(10), '<br/>')}</p>"
+
+        # Create EmailMessage
+        idempotency_key = secrets.token_hex(16)
+        email_msg = EmailMessage(
+            lead_id=lead.id,
+            from_email="outreach@fixhubtech.com",
+            from_name="Joshua Caleb",
+            reply_to_email="outreach@fixhubtech.com",
+            to_email=lead.email,
+            subject=subject,
+            text_body=body_text,
+            html_body=body_html,
+            status=EmailStatus.APPROVED.value,
+            idempotency_key=idempotency_key,
+        )
+        db.add(email_msg)
+
+        lead.crm_status = CrmStatus.CONTACTED.value
+        lead.last_contacted_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        # Enqueue actual delivery via ARQ
+        from app.queue import get_queue
+        queue = await get_queue()
+        await queue.enqueue_job("send_email", email_message_id=email_msg.id)
+
+        # Increment daily counter
+        await redis.incr(f"outreach:daily_sent:{today_key}")
+        await redis.expire(f"outreach:daily_sent:{today_key}", 86400 * 2)
+
+        logger.info(f"Autopilot sent outreach to {lead.email} ({biz_name})")
+        return {"status": "sent", "email": lead.email, "business": biz_name}
+
+
+async def telegram_bot_listener_loop():
+    """Background long-polling loop to allow controlling Shaliach directly from Telegram."""
+    settings = get_settings()
+    token = settings.telegram_token
+    chat_id = settings.TELEGRAM_CHAT_ID
+
+    if not token or not chat_id:
+        logger.info("Telegram bot listener disabled: token or chat_id not configured.")
+        return
+
+    logger.info("Starting Telegram interactive bot listener...")
+    base_url = f"https://api.telegram.org/bot{token}"
+    offset = 0
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(
+                    f"{base_url}/getUpdates",
+                    params={"offset": offset, "timeout": 20},
+                )
+                if resp.status_code != 200:
+                    await asyncio.sleep(5)
+                    continue
+
+                data = resp.json()
+                for update in data.get("result", []):
+                    offset = update["update_id"] + 1
+                    msg = update.get("message")
+                    if not msg:
+                        continue
+
+                    sender_id = str(msg.get("chat", {}).get("id"))
+                    # Security: Only respond to authorized user
+                    if sender_id != str(chat_id):
+                        logger.warning(f"Ignored unauthorized message from chat_id {sender_id}")
+                        continue
+
+                    text = (msg.get("text") or "").strip()
+                    await _handle_telegram_command(text, client, base_url, chat_id)
+
+        except asyncio.CancelledError:
+            logger.info("Telegram listener cancelled.")
+            break
+        except Exception as e:
+            logger.warning(f"Error in Telegram listener loop: {e}")
+            await asyncio.sleep(5)
+
+
+async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_url: str, chat_id: str):
+    """Parses and executes Telegram commands from user."""
+    tg = get_telegram_service()
+    redis = get_redis()
+    cmd = text.lower().strip()
+
+    if cmd in ("/start", "/help"):
+        help_text = (
+            "👋 <b>Welcome to Shaliach Autopilot Cockpit!</b>\n\n"
+            "Here are your commands:\n"
+            "📊 <b>/stats</b> — Pipeline stats & today's summary\n"
+            "🔎 <b>/find &lt;niche&gt; in &lt;city&gt;</b> — Hunt leads now (e.g. <code>/find roofing in Dallas 10</code>)\n"
+            "🚀 <b>/drip</b> — Trigger 1 safe outreach email now\n"
+            "⏸️ <b>/pause</b> — Pause automated outreach\n"
+            "▶️ <b>/resume</b> — Resume automated outreach\n"
+            "🟢 <b>/ping</b> — Check server liveness\n"
+        )
+        await tg.send_message(help_text)
+
+    elif cmd == "/ping":
+        await tg.send_message("🏓 <b>Pong!</b> VPS server and worker are fully active.")
+
+    elif cmd == "/pause":
+        await redis.set("autopilot:drip:paused", "1")
+        await redis.set("autopilot:discovery:paused", "1")
+        await tg.send_message("⏸️ <b>Autopilot Paused.</b> Outreach and lead discovery are on hold.")
+
+    elif cmd == "/resume":
+        await redis.delete("autopilot:drip:paused")
+        await redis.delete("autopilot:discovery:paused")
+        await tg.send_message("▶️ <b>Autopilot Resumed.</b> Discovery and human-paced drip are running.")
+
+    elif cmd == "/stats":
+        async with async_session_factory() as db:
+            total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
+            contacted = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status == CrmStatus.CONTACTED.value))).scalar() or 0
+            interested = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status.in_(["INTERESTED", "MEETING_REQUESTED", "QUALIFIED"])))).scalar() or 0
+            
+            today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            sent_today = int(await redis.get(f"outreach:daily_sent:{today_key}") or 0)
+
+            stats_msg = (
+                f"📊 <b>CURRENT PIPELINE STATS</b>\n\n"
+                f"👥 <b>Total Leads:</b> {total_leads}\n"
+                f"✉️ <b>Contacted:</b> {contacted}\n"
+                f"🔥 <b>Hot/Interested:</b> {interested}\n"
+                f"📤 <b>Emails Sent Today:</b> {sent_today}/40\n"
+            )
+            await tg.send_message(stats_msg)
+
+    elif cmd == "/drip":
+        await tg.send_message("🚀 <i>Triggering safe drip outreach task...</i>")
+        res = await auto_drip_outreach({})
+        status = res.get("status")
+        if status == "sent":
+            await tg.send_message(f"✅ Sent email to <b>{html.escape(res.get('business', ''))}</b> ({res.get('email')})")
+        else:
+            await tg.send_message(f"ℹ️ Drip result: <code>{status}</code>")
+
+    elif cmd.startswith("/find"):
+        # Format: /find <niche> in <location> [limit] or /find <niche> <location>
+        raw = text[5:].strip()
+        if not raw:
+            await tg.send_message("⚠️ Usage: <code>/find &lt;niche&gt; in &lt;city&gt; [limit]</code>\nExample: <code>/find roofing in Dallas 10</code>")
+            return
+
+        match = re.search(r"^(.*?)\s+in\s+(.*?)(?:\s+(\d+))?$", raw, re.IGNORECASE)
+        if match:
+            niche = match.group(1).strip()
+            loc = match.group(2).strip()
+            limit = int(match.group(3) or 10)
+        else:
+            parts = raw.split()
+            niche = parts[0]
+            loc = " ".join(parts[1:]) if len(parts) > 1 else "Boston, MA"
+            limit = 10
+
+        await tg.send_message(f"🔎 <i>Searching verified leads for '{niche}' in '{loc}'... This takes ~20 seconds.</i>")
+        async with async_session_factory() as db:
+            finder = LeadFinderService(db=db)
+            result = await finder.discover_leads(niche=niche, location=loc, limit=limit, save_to_db=True)
+            leads = result.get("leads", [])
+
+        if not leads:
+            await tg.send_message(f"❌ No verified email contacts found for '{niche}' in '{loc}'. Try another niche or city.")
+        else:
+            await tg.notify_leads_discovered(niche=niche, location=loc, count=len(leads), sample_leads=leads[:5])

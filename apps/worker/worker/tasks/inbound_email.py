@@ -162,5 +162,23 @@ async def process_inbound_reply(
 
         await db.commit()
 
+        # 8. Dispatch Instant Alert to Telegram
+        try:
+            from app.services.telegram_service import get_telegram_service
+            tg = get_telegram_service()
+            await tg.notify_inbound_reply(
+                business_name=lead.business_name,
+                from_name=from_name or lead.first_name,
+                from_email=recipient_email,
+                subject=subject,
+                body=body,
+                classification=classification,
+                conversation_id=conversation.id if conversation else None,
+                ai_draft_reply=reply_res.get("textBody"),
+            )
+        except Exception as tg_err:
+            logger.warning(f"Could not dispatch Telegram alert for inbound reply: {tg_err}")
+
     logger.info(f"Inbound reply classified as {classification}")
     return {"success": True, "classification": classification}
+

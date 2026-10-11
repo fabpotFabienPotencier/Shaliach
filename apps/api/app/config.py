@@ -47,7 +47,17 @@ class Settings(BaseSettings):
     SERPER_API_KEY: str = ""
     BRAVE_API_KEY: str = ""
 
+    # ── Telegram Bot & Alerts ─────────────────────────────────
+    TELEGRAM_TOKEN: str = ""
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+
+    @property
+    def telegram_token(self) -> str:
+        return self.TELEGRAM_TOKEN or self.TELEGRAM_BOT_TOKEN
+
 
     @property
     def async_database_url(self) -> str:
