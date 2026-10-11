@@ -30,15 +30,18 @@ from ..ai_provider import GroqAiProvider
 logger = logging.getLogger("shaliach.worker.autopilot")
 
 TARGET_NICHES = [
-    "marketing agency",
-    "web design",
-    "commercial roofing",
-    "hvac",
-    "accountant",
-    "dental clinic",
-    "plumbing",
-    "electrician",
+    "digital marketing agency",
+    "web development agency",
+    "creative design studio",
+    "freight logistics brokerage",
+    "commercial real estate",
+    "b2b wholesale supplier",
+    "custom home builder",
+    "specialty medical clinic",
+    "architectural firm",
+    "corporate law firm",
 ]
+
 
 TARGET_CITIES = [
     "Boston, MA",
@@ -145,13 +148,25 @@ async def auto_drip_outreach(ctx: dict) -> dict:
         first_name = lead.first_name or ""
         niche = lead.category or "business"
 
-        prompt = (
-            f"Write a short, conversational 1-to-1 cold outreach email to {first_name or biz_name} ({niche}). "
-            f"Our company is Fixhubtech (founded by Joshua Caleb). We build high-performance web systems, "
-            f"automated lead capture, and API infrastructure. "
-            f"Keep it under 90 words. Sound like a real founder writing a personal note. Do not use buzzwords. "
-            f"Offer a quick 5-minute chat or brief preview."
-        )
+        is_agency = any(term in (niche or "").lower() for term in ["agency", "design", "creative", "studio", "software", "dev", "marketing"])
+        if is_agency:
+            prompt = (
+                f"Write a brief, direct 1-to-1 cold email to {first_name or biz_name} (a digital/creative agency). "
+                f"Sender is Joshua Caleb (Fixhubtech). You are an experienced full-stack engineer (Python, Next.js, APIs, cloud systems). "
+                f"Agency teams frequently face tight client launch deadlines and dev backlog crunches. "
+                f"Offer white-label contract support to take overflow backend, API, or frontend tasks off their dev team. "
+                f"Keep it under 75 words. Zero corporate buzzwords. Natural, founder-to-founder peer tone. "
+                f"Ask if they have any overflow dev tickets on their radar this month."
+            )
+        else:
+            prompt = (
+                f"Write a short, conversational 1-to-1 cold outreach email to {first_name or biz_name} ({niche}). "
+                f"Sender is Joshua Caleb (Fixhubtech). "
+                f"You build high-performance web systems, custom client intake portals, and workflow/API automations "
+                f"that eliminate repetitive manual work and capture high-value clients. "
+                f"Keep it under 80 words. Sound like a real tech founder writing a personal note. "
+                f"No generic marketing buzzwords. Ask for a brief 5-minute chat to see if they're looking to automate any workflows this quarter."
+            )
 
         try:
             gen_res = await ai.generate_outreach(
@@ -160,14 +175,23 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                 industry=niche,
                 prompt_guidelines=prompt,
             )
-            subject = gen_res.get("subject") or f"Quick question regarding {biz_name}"
-            body_text = gen_res.get("textBody") or f"Hi {first_name or 'there'},\n\nI was reviewing {biz_name} and wanted to see if your team has capacity for web & API automation enhancements this quarter.\n\nBest,\nJoshua Caleb\nFixhubtech"
+            subject = gen_res.get("subject") or (f"Quick question for {biz_name} dev team" if is_agency else f"Quick question regarding {biz_name}")
+            body_text = gen_res.get("textBody") or (
+                f"Hi {first_name or 'there'},\n\nI was looking at {biz_name}'s work and wanted to reach out. I'm a fullstack engineer (Python / Next.js / APIs). I know agency teams frequently hit bandwidth limits when client deadlines stack up, so I wanted to see if your team has any overflow dev tasks you'd like off your backlog this month?\n\nBest,\nJoshua Caleb\nFixhubtech"
+                if is_agency else
+                f"Hi {first_name or 'there'},\n\nI was reviewing {biz_name} and wanted to see if your team is exploring any custom workflow automations or client intake portals this quarter? We build custom web and API systems that eliminate repetitive manual data entry.\n\nBest regards,\nJoshua Caleb\nFixhubtech"
+            )
         except Exception as e:
             logger.warning(f"AI generation fallback: {e}")
-            subject = f"Quick question regarding {biz_name}"
-            body_text = f"Hi {first_name or 'there'},\n\nI came across {biz_name} and wanted to see if your team has capacity for backend & web infrastructure enhancements this month.\n\nBest regards,\nJoshua Caleb\nFixhubtech"
+            subject = f"Quick question for {biz_name} team" if is_agency else f"Quick question regarding {biz_name}"
+            body_text = (
+                f"Hi {first_name or 'there'},\n\nI'm a fullstack engineer (Python / Next.js / APIs). I help agency teams handle overflow dev work when in-house engineers are at capacity. Do you have any backend or API tasks sitting on your backlog this month?\n\nBest,\nJoshua Caleb\nFixhubtech"
+                if is_agency else
+                f"Hi {first_name or 'there'},\n\nI came across {biz_name} and wanted to see if your team has capacity for workflow automation or portal enhancements this month. Would you be open to a quick 5-minute note?\n\nBest,\nJoshua Caleb\nFixhubtech"
+            )
 
         body_html = f"<p>{body_text.replace(chr(10), '<br/>')}</p>"
+
 
         # Create EmailMessage
         idempotency_key = secrets.token_hex(16)
