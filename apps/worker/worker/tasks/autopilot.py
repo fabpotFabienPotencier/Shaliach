@@ -7,8 +7,9 @@ Handles:
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import html
+
 import logging
 import re
 import secrets
@@ -125,7 +126,108 @@ async def auto_drip_outreach(ctx: dict) -> dict:
         return {"status": "outside_hours"}
 
     async with async_session_factory() as db:
-        # Find 1 fresh uncontacted valid lead
+        # 1. PRIORITY: Check if any contacted lead is due for a 3-day follow-up bump
+        three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+        fourteen_days_ago = datetime.now(timezone.utc) - timedelta(days=14)
+
+        follow_up_stmt = (
+            select(Lead)
+            .outerjoin(
+                EmailMessage,
+                and_(EmailMessage.lead_id == Lead.id, EmailMessage.is_follow_up == True),
+            )
+            .where(
+                and_(
+                    Lead.crm_status == CrmStatus.CONTACTED.value,
+                    Lead.last_contacted_at <= three_days_ago,
+                    Lead.last_contacted_at >= fourteen_days_ago,
+                    Lead.last_reply_at.is_(None),
+                    EmailMessage.id.is_(None),
+                )
+            )
+            .order_by(Lead.last_contacted_at.asc())
+            .limit(1)
+        )
+        followup_lead = (await db.execute(follow_up_stmt)).scalar_one_or_none()
+
+        if followup_lead:
+            biz_name = followup_lead.business_name or "there"
+            first_name = followup_lead.first_name or ""
+            niche = followup_lead.category or "business"
+            is_agency = any(term in (niche or "").lower() for term in ["agency", "design", "creative", "studio", "software", "dev", "marketing"])
+
+            # Find previous email subject to keep the natural thread
+            prev_msg_stmt = (
+                select(EmailMessage)
+                .where(and_(EmailMessage.lead_id == followup_lead.id, EmailMessage.is_follow_up == False))
+                .order_by(EmailMessage.created_at.desc())
+                .limit(1)
+            )
+            prev_msg = (await db.execute(prev_msg_stmt)).scalar_one_or_none()
+            orig_subject = prev_msg.subject if prev_msg else f"Quick question for {biz_name}"
+            follow_subject = orig_subject if orig_subject.lower().startswith("re:") else f"Re: {orig_subject}"
+
+            ai = GroqAiProvider()
+            if is_agency:
+                bump_prompt = (
+                    f"Write a friendly 2-sentence follow-up bump to {first_name or biz_name} (a digital agency). "
+                    f"Sender is Joshua Caleb (Fixhubtech). "
+                    f"Keep it under 35 words. Reference our previous note about overflow contract engineering (Python, Next.js, APIs). "
+                    f"Ask if they have any overflow dev tickets this month or if they're all covered."
+                )
+                default_bump = f"Hi {first_name or 'there'},\n\nJust floating this back to the top of your inbox in case your dev team was jammed earlier this week.\n\nNo stress at all if you're completely covered on engineering capacity right now!\n\nBest,\nJoshua Caleb\nFixhubtech"
+            else:
+                bump_prompt = (
+                    f"Write a friendly 2-sentence follow-up bump to {first_name or biz_name} ({niche}). "
+                    f"Sender is Joshua Caleb (Fixhubtech). "
+                    f"Keep it under 35 words. Reference our previous note about client portals and workflow automations. "
+                    f"Ask if they're exploring any portal or automation upgrades this quarter, or if everything is set."
+                )
+                default_bump = f"Hi {first_name or 'there'},\n\nQuick follow-up in case my previous note got buried under your inbox.\n\nAre you guys exploring any client portal or workflow automation upgrades this quarter, or are you all squared away?\n\nBest regards,\nJoshua Caleb\nFixhubtech"
+
+            try:
+                gen_res = await ai.generate_outreach(
+                    prospect_name=first_name or biz_name,
+                    company_name=biz_name,
+                    industry=niche,
+                    prompt_guidelines=bump_prompt,
+                )
+                bump_text = gen_res.get("textBody") or default_bump
+            except Exception as e:
+                logger.warning(f"Follow-up AI generation fallback: {e}")
+                bump_text = default_bump
+
+            bump_html = f"<p>{bump_text.replace(chr(10), '<br/>')}</p>"
+
+            idempotency_key = secrets.token_hex(16)
+            email_msg = EmailMessage(
+                lead_id=followup_lead.id,
+                from_email="outreach@fixhubtech.com",
+                from_name="Joshua Caleb",
+                reply_to_email="outreach@fixhubtech.com",
+                to_email=followup_lead.email,
+                subject=follow_subject,
+                text_body=bump_text,
+                html_body=bump_html,
+                status=EmailStatus.APPROVED.value,
+                is_follow_up=True,
+                idempotency_key=idempotency_key,
+            )
+            db.add(email_msg)
+            followup_lead.last_contacted_at = datetime.now(timezone.utc)
+            await db.commit()
+
+            from app.queue import get_queue
+            queue = await get_queue()
+            await queue.enqueue_job("send_email", email_message_id=email_msg.id)
+
+            await redis.incr(f"outreach:daily_sent:{today_key}")
+            await redis.expire(f"outreach:daily_sent:{today_key}", 86400 * 2)
+
+            logger.info(f"Autopilot sent 3-day follow-up bump to {followup_lead.email} ({biz_name})")
+            return {"status": "follow_up_sent", "email": followup_lead.email, "business": biz_name}
+
+        # 2. If no follow-up is due, proceed with fresh uncontacted lead
         stmt = (
             select(Lead)
             .where(
@@ -192,7 +294,6 @@ async def auto_drip_outreach(ctx: dict) -> dict:
 
         body_html = f"<p>{body_text.replace(chr(10), '<br/>')}</p>"
 
-
         # Create EmailMessage
         idempotency_key = secrets.token_hex(16)
         email_msg = EmailMessage(
@@ -205,6 +306,7 @@ async def auto_drip_outreach(ctx: dict) -> dict:
             text_body=body_text,
             html_body=body_html,
             status=EmailStatus.APPROVED.value,
+            is_follow_up=False,
             idempotency_key=idempotency_key,
         )
         db.add(email_msg)
@@ -224,6 +326,7 @@ async def auto_drip_outreach(ctx: dict) -> dict:
 
         logger.info(f"Autopilot sent outreach to {lead.email} ({biz_name})")
         return {"status": "sent", "email": lead.email, "business": biz_name}
+
 
 
 async def telegram_bot_listener_loop():
@@ -311,19 +414,24 @@ async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_ur
         async with async_session_factory() as db:
             total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
             contacted = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status == CrmStatus.CONTACTED.value))).scalar() or 0
+            follow_ups = (await db.execute(select(func.count(EmailMessage.id)).where(EmailMessage.is_follow_up == True))).scalar() or 0
+            replied = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status == CrmStatus.REPLIED.value))).scalar() or 0
             interested = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status.in_(["INTERESTED", "MEETING_REQUESTED", "QUALIFIED"])))).scalar() or 0
-            
+
             today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             sent_today = int(await redis.get(f"outreach:daily_sent:{today_key}") or 0)
 
             stats_msg = (
                 f"📊 <b>CURRENT PIPELINE STATS</b>\n\n"
                 f"👥 <b>Total Leads:</b> {total_leads}\n"
-                f"✉️ <b>Contacted:</b> {contacted}\n"
+                f"✉️ <b>Initial Outreach:</b> {contacted}\n"
+                f"🔁 <b>Follow-Ups Sent:</b> {follow_ups}\n"
+                f"💬 <b>Replies Received:</b> {replied}\n"
                 f"🔥 <b>Hot/Interested:</b> {interested}\n"
-                f"📤 <b>Emails Sent Today:</b> {sent_today}/40\n"
+                f"📤 <b>Sent Today:</b> {sent_today}/40\n"
             )
             await tg.send_message(stats_msg)
+
 
     elif cmd == "/drip":
         await tg.send_message("🚀 <i>Triggering safe drip outreach task...</i>")
