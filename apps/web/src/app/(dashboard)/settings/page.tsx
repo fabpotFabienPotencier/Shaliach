@@ -145,11 +145,12 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="font-semibold text-muted-foreground">Primary Model</label>
-                  <Input value="llama-3.3-70b-versatile" disabled className="h-8 text-xs font-mono" />
+                  <Input value="openai/gpt-oss-120b" disabled className="h-8 text-xs font-mono" />
                 </div>
                 <div className="space-y-1">
                   <label className="font-semibold text-muted-foreground">Fallback Model</label>
-                  <Input value="llama-3.1-8b-instant" disabled className="h-8 text-xs font-mono" />
+                  <Input value="openai/gpt-oss-20b" disabled className="h-8 text-xs font-mono" />
+
                 </div>
                 <div className="space-y-1">
                   <label className="font-semibold text-muted-foreground">Max Output Tokens</label>

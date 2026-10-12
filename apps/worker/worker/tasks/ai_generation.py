@@ -88,8 +88,9 @@ async def generate_outreach(
         text_body = ai_res.get("textBody", "")
         html_body = ai_res.get("htmlBody", "")
         confidence = float(ai_res.get("confidence", 0.9))
-        model = ai_res.get("model", "llama-3.3-70b-versatile")
+        model = ai_res.get("model", "openai/gpt-oss-120b")
         prompt_tokens = ai_res.get("promptTokens", 0)
+
         completion_tokens = ai_res.get("completionTokens", 0)
 
         # 1. Create AiGeneration

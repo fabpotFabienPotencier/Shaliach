@@ -22,10 +22,11 @@ class Settings(BaseSettings):
 
     # ── Groq AI ───────────────────────────────────────────────
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    GROQ_FALLBACK_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_FALLBACK_MODEL: str = "openai/gpt-oss-20b"
     GROQ_MAX_TOKENS: int = 2048
     GROQ_TEMPERATURE: float = 0.7
+
 
     # ── Resend Email ──────────────────────────────────────────
     RESEND_API_KEY: str = ""

@@ -97,8 +97,8 @@ class GroqAiProvider:
     def __init__(self):
         settings = get_settings()
         self.api_key = getattr(settings, "GROQ_API_KEY", "")
-        self.primary_model = getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile"
-        self.fallback_model = getattr(settings, "GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant") or "llama-3.1-8b-instant"
+        self.primary_model = getattr(settings, "GROQ_MODEL", "openai/gpt-oss-120b") or "openai/gpt-oss-120b"
+        self.fallback_model = getattr(settings, "GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b") or "openai/gpt-oss-20b"
         self.base_url = "https://api.groq.com/openai/v1"
 
     async def _call_llm(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> dict[str, Any]:
@@ -117,8 +117,22 @@ class GroqAiProvider:
             "Content-Type": "application/json",
         }
 
-        models_to_try = [self.primary_model, self.fallback_model]
+        # Dynamic model cascade: try primary, fallback, then alternates
+        candidates = [
+            self.primary_model,
+            self.fallback_model,
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+        ]
+        models_to_try = []
+        for m in candidates:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
 
+        last_error = None
         async with httpx.AsyncClient(timeout=45.0) as client:
             for model in models_to_try:
                 for attempt in range(2):
@@ -138,6 +152,9 @@ class GroqAiProvider:
                             logger.warning(f"Groq model {model} rate limited (429). Backing off 2s...")
                             await asyncio.sleep(2.0)
                             continue
+                        if resp.status_code in (400, 404):
+                            logger.warning(f"Groq model {model} unavailable (HTTP {resp.status_code}): {resp.text}. Trying next candidate...")
+                            break
                         resp.raise_for_status()
                         data = resp.json()
                         content = data["choices"][0]["message"]["content"]
@@ -147,17 +164,39 @@ class GroqAiProvider:
                         result["completionTokens"] = data.get("usage", {}).get("completion_tokens", 0)
                         return result
                     except Exception as e:
+                        last_error = e
                         logger.warning(f"Groq model {model} attempt {attempt} failed: {e}")
                         await asyncio.sleep(1.0)
 
-        raise RuntimeError("All Groq models and retries failed")
+        raise RuntimeError(f"All Groq models failed. Last error: {last_error}")
 
-    async def generate_outreach(self, lead_data: dict, sender_data: dict, prompt_guidelines: str | None = None) -> dict[str, Any]:
-        biz_name = lead_data.get("businessName") or lead_data.get("business_name") or "your business"
-        first_name = lead_data.get("firstName") or lead_data.get("first_name") or "there"
-        city = lead_data.get("city") or "your area"
+    async def generate_outreach(
+        self,
+        lead_data: dict | None = None,
+        sender_data: dict | None = None,
+        prompt_guidelines: str | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        # Support flexible invocation
+        lead_data = lead_data or {}
+        sender_data = sender_data or {}
+
+        biz_name = (
+            kwargs.get("company_name")
+            or lead_data.get("businessName")
+            or lead_data.get("business_name")
+            or "your business"
+        )
+        first_name = (
+            kwargs.get("prospect_name")
+            or lead_data.get("firstName")
+            or lead_data.get("first_name")
+            or "there"
+        )
+        city = kwargs.get("location") or lead_data.get("city") or "your area"
         sender_name = sender_data.get("name") or "Joshua Caleb"
         sender_comp = sender_data.get("company") or "FixHubTech"
+        guidelines = prompt_guidelines or kwargs.get("prompt_guidelines")
 
         default_fallback = {
             "subject": f"Quick question regarding {biz_name}",
@@ -174,13 +213,16 @@ class GroqAiProvider:
             return default_fallback
 
         user_prompt = f"Generate an outreach email for this lead:\n\nLEAD DATA:\n"
+        if kwargs.get("industry"):
+            user_prompt += f"- Industry: {kwargs['industry']}\n"
         for k, v in lead_data.items():
             if v:
                 user_prompt += f"- {k}: {v}\n"
 
         user_prompt += f"\nSENDER:\n- Name: {sender_name}\n- Company: {sender_comp}\n"
-        if prompt_guidelines:
-            user_prompt += f"\nCAMPAIGN INSTRUCTIONS:\n{prompt_guidelines}\n"
+        if guidelines:
+            user_prompt += f"\nCAMPAIGN INSTRUCTIONS:\n{guidelines}\n"
+
 
         try:
             res = await self._call_llm(OUTREACH_SYSTEM_PROMPT, user_prompt)
