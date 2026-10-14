@@ -133,6 +133,45 @@ class TelegramService:
 
         return await self.send_message(msg)
 
+    async def notify_social_leads_discovered(
+        self,
+        platform: str,
+        niche: str,
+        count: int,
+        sample_leads: list[dict] | None = None,
+    ) -> bool:
+        """Send notification when automated social collab scraper discovers accounts."""
+        platform_icons = {
+            "instagram": "📸",
+            "tiktok": "🎵",
+            "twitter": "🐦",
+            "youtube": "▶️",
+            "linkedin": "💼",
+            "all": "🌐",
+        }
+        icon = platform_icons.get(platform.lower(), "🌟")
+        esc_platform = html.escape(platform.title())
+        esc_niche = html.escape(niche.title())
+
+        msg = (
+            f"{icon} <b>SOCIAL COLLAB: {count} New Accounts Discovered!</b>\n\n"
+            f"📱 <b>Platform:</b> {esc_platform}\n"
+            f"🎯 <b>Niche:</b> {esc_niche}\n"
+            f"👥 <b>Verified Collab Emails Added:</b> {count}\n\n"
+        )
+
+        if sample_leads:
+            msg += "📋 <b>Fresh Creators & Studios:</b>\n"
+            for item in sample_leads[:4]:
+                handle = html.escape(item.get("handle") or item.get("business_name") or "@creator")
+                email = html.escape(item.get("email") or "")
+                plat = html.escape(item.get("platform") or platform.title())
+                msg += f"• <b>{handle}</b> ({plat}) — <code>{email}</code>\n"
+
+        msg += f"\n💾 <i>Committed to database & ready for personalized collab outreach.</i>"
+
+        return await self.send_message(msg)
+
     async def notify_daily_digest(
         self,
         total_leads: int,

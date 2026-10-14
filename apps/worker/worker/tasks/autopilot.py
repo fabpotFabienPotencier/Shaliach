@@ -250,8 +250,28 @@ async def auto_drip_outreach(ctx: dict) -> dict:
         first_name = lead.first_name or ""
         niche = lead.category or "business"
 
-        is_agency = any(term in (niche or "").lower() for term in ["agency", "design", "creative", "studio", "software", "dev", "marketing"])
-        if is_agency:
+        is_social = bool(lead.source and lead.source.startswith("social_collab_"))
+        is_agency = any(term in (niche or "").lower() for term in ["agency", "design", "creative", "studio", "software", "dev", "marketing"]) and not is_social
+
+        if is_social:
+            platform_name = (lead.source or "").replace("social_collab_", "").title()
+            prompt = (
+                f"Write a short, friendly, direct 1-to-1 collaboration inquiry email to {biz_name} (a creator/studio on {platform_name}). "
+                f"Sender is Joshua Caleb (FixHubTech / Shaliach AI). "
+                f"Tone: Casual, respectful, founder-to-creator peer tone. Under 65 words. Zero corporate jargon. "
+                f"Mention you saw in their bio that they are open for collaborations and brand partnerships. "
+                f"We built an autonomous client acquisition tool (Shaliach) that helps rising studios and creators pitch verified brands directly instead of waiting on incoming DMs. "
+                f"Ask if they're open to seeing a quick 60-second walkthrough or discussing a partnership."
+            )
+            fallback_subject = f"Quick question re: collaboration with {biz_name}"
+            fallback_body = (
+                f"Hi {first_name or 'there'},\n\n"
+                f"I came across your {platform_name} page ({biz_name}) and saw in your bio that you're open for collaborations.\n\n"
+                f"We built an automated outreach system that helps upcoming creators and studios pitch verified brand sponsors and clients directly on autopilot, so you don't have to wait on incoming DMs.\n\n"
+                f"Would you be open to taking a look at a quick 60-second walkthrough or discussing partnering up?\n\n"
+                f"Best regards,\nJoshua Caleb\nFixhubtech"
+            )
+        elif is_agency:
             prompt = (
                 f"Write a brief, direct 1-to-1 cold email to {first_name or biz_name} (a digital/creative agency). "
                 f"Sender is Joshua Caleb (Fixhubtech). You are an experienced full-stack engineer (Python, Next.js, APIs, cloud systems). "
@@ -260,6 +280,8 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                 f"Keep it under 75 words. Zero corporate buzzwords. Natural, founder-to-founder peer tone. "
                 f"Ask if they have any overflow dev tickets on their radar this month."
             )
+            fallback_subject = f"Quick question for {biz_name} dev team"
+            fallback_body = f"Hi {first_name or 'there'},\n\nI was looking at {biz_name}'s work and wanted to reach out. I'm a fullstack engineer (Python / Next.js / APIs). I know agency teams frequently hit bandwidth limits when client deadlines stack up, so I wanted to see if your team has any overflow dev tasks you'd like off your backlog this month?\n\nBest,\nJoshua Caleb\nFixhubtech"
         else:
             prompt = (
                 f"Write a short, conversational 1-to-1 cold outreach email to {first_name or biz_name} ({niche}). "
@@ -269,6 +291,8 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                 f"Keep it under 80 words. Sound like a real tech founder writing a personal note. "
                 f"No generic marketing buzzwords. Ask for a brief 5-minute chat to see if they're looking to automate any workflows this quarter."
             )
+            fallback_subject = f"Quick question regarding {biz_name}"
+            fallback_body = f"Hi {first_name or 'there'},\n\nI was reviewing {biz_name} and wanted to see if your team is exploring any custom workflow automations or client intake portals this quarter? We build custom web and API systems that eliminate repetitive manual data entry.\n\nBest regards,\nJoshua Caleb\nFixhubtech"
 
         try:
             gen_res = await ai.generate_outreach(
@@ -277,20 +301,12 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                 industry=niche,
                 prompt_guidelines=prompt,
             )
-            subject = gen_res.get("subject") or (f"Quick question for {biz_name} dev team" if is_agency else f"Quick question regarding {biz_name}")
-            body_text = gen_res.get("textBody") or (
-                f"Hi {first_name or 'there'},\n\nI was looking at {biz_name}'s work and wanted to reach out. I'm a fullstack engineer (Python / Next.js / APIs). I know agency teams frequently hit bandwidth limits when client deadlines stack up, so I wanted to see if your team has any overflow dev tasks you'd like off your backlog this month?\n\nBest,\nJoshua Caleb\nFixhubtech"
-                if is_agency else
-                f"Hi {first_name or 'there'},\n\nI was reviewing {biz_name} and wanted to see if your team is exploring any custom workflow automations or client intake portals this quarter? We build custom web and API systems that eliminate repetitive manual data entry.\n\nBest regards,\nJoshua Caleb\nFixhubtech"
-            )
+            subject = gen_res.get("subject") or fallback_subject
+            body_text = gen_res.get("textBody") or fallback_body
         except Exception as e:
             logger.warning(f"AI generation fallback: {e}")
-            subject = f"Quick question for {biz_name} team" if is_agency else f"Quick question regarding {biz_name}"
-            body_text = (
-                f"Hi {first_name or 'there'},\n\nI'm a fullstack engineer (Python / Next.js / APIs). I help agency teams handle overflow dev work when in-house engineers are at capacity. Do you have any backend or API tasks sitting on your backlog this month?\n\nBest,\nJoshua Caleb\nFixhubtech"
-                if is_agency else
-                f"Hi {first_name or 'there'},\n\nI came across {biz_name} and wanted to see if your team has capacity for workflow automation or portal enhancements this month. Would you be open to a quick 5-minute note?\n\nBest,\nJoshua Caleb\nFixhubtech"
-            )
+            subject = fallback_subject
+            body_text = fallback_body
 
         body_html = f"<p>{body_text.replace(chr(10), '<br/>')}</p>"
 
@@ -389,8 +405,10 @@ async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_ur
             "👋 <b>Welcome to Shaliach Autopilot Cockpit!</b>\n\n"
             "Here are your commands:\n"
             "📊 <b>/stats</b> — Pipeline stats & today's summary\n"
-            "🔎 <b>/find &lt;niche&gt; in &lt;city&gt;</b> — Hunt leads now (e.g. <code>/find roofing in Dallas 10</code>)\n"
-            "🚀 <b>/drip</b> — Trigger 1 safe outreach email now\n"
+            "🔎 <b>/find &lt;niche&gt; in &lt;city&gt;</b> — Hunt B2B leads (e.g. <code>/find roofing in Dallas 10</code>)\n"
+            "📱 <b>/social &lt;niche&gt; [platform]</b> — Hunt social collab leads (e.g. <code>/social podcast tiktok</code>)\n"
+            "🚀 <b>/drip</b> — Trigger 1 safe agency email now\n"
+            "📨 <b>/socialdrip</b> — Trigger 1 safe creator collab email now\n"
             "⏸️ <b>/pause</b> — Pause automated outreach\n"
             "▶️ <b>/resume</b> — Resume automated outreach\n"
             "🟢 <b>/ping</b> — Check server liveness\n"
@@ -403,16 +421,19 @@ async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_ur
     elif cmd == "/pause":
         await redis.set("autopilot:drip:paused", "1")
         await redis.set("autopilot:discovery:paused", "1")
+        await redis.set("autopilot:social:paused", "1")
         await tg.send_message("⏸️ <b>Autopilot Paused.</b> Outreach and lead discovery are on hold.")
 
     elif cmd == "/resume":
         await redis.delete("autopilot:drip:paused")
         await redis.delete("autopilot:discovery:paused")
+        await redis.delete("autopilot:social:paused")
         await tg.send_message("▶️ <b>Autopilot Resumed.</b> Discovery and human-paced drip are running.")
 
     elif cmd == "/stats":
         async with async_session_factory() as db:
             total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
+            social_leads = (await db.execute(select(func.count(Lead.id)).where(Lead.source.like("social_collab_%")))).scalar() or 0
             contacted = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status == CrmStatus.CONTACTED.value))).scalar() or 0
             follow_ups = (await db.execute(select(func.count(EmailMessage.id)).where(EmailMessage.is_follow_up == True))).scalar() or 0
             replied = (await db.execute(select(func.count(Lead.id)).where(Lead.crm_status == CrmStatus.REPLIED.value))).scalar() or 0
@@ -420,18 +441,20 @@ async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_ur
 
             today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             sent_today = int(await redis.get(f"outreach:daily_sent:{today_key}") or 0)
+            social_sent_today = int(await redis.get(f"social_outreach:daily_sent:{today_key}") or 0)
 
             stats_msg = (
                 f"📊 <b>CURRENT PIPELINE STATS</b>\n\n"
                 f"👥 <b>Total Leads:</b> {total_leads}\n"
+                f"📱 <b>Social Collab Accounts:</b> {social_leads}\n"
                 f"✉️ <b>Initial Outreach:</b> {contacted}\n"
                 f"🔁 <b>Follow-Ups Sent:</b> {follow_ups}\n"
                 f"💬 <b>Replies Received:</b> {replied}\n"
                 f"🔥 <b>Hot/Interested:</b> {interested}\n"
-                f"📤 <b>Sent Today:</b> {sent_today}/40\n"
+                f"📤 <b>Agency Drip Today:</b> {sent_today}/40\n"
+                f"📨 <b>Social Drip Today:</b> {social_sent_today}/25\n"
             )
             await tg.send_message(stats_msg)
-
 
     elif cmd == "/drip":
         await tg.send_message("🚀 <i>Triggering safe drip outreach task...</i>")
@@ -441,6 +464,46 @@ async def _handle_telegram_command(text: str, client: httpx.AsyncClient, base_ur
             await tg.send_message(f"✅ Sent email to <b>{html.escape(res.get('business', ''))}</b> ({res.get('email')})")
         else:
             await tg.send_message(f"ℹ️ Drip result: <code>{status}</code>")
+
+    elif cmd == "/socialdrip":
+        await tg.send_message("📨 <i>Triggering safe social collab outreach task...</i>")
+        from .social_collab import auto_drip_social_outreach
+        res = await auto_drip_social_outreach({})
+        status = res.get("status")
+        if status == "sent":
+            await tg.send_message(f"✅ Sent collab email to <b>{html.escape(res.get('handle', ''))}</b> ({res.get('email')}) on {res.get('platform')}")
+        else:
+            await tg.send_message(f"ℹ️ Social drip result: <code>{status}</code>")
+
+    elif cmd.startswith("/social"):
+        raw = text[7:].strip()
+        if not raw:
+            await tg.send_message(
+                "⚠️ Usage: <code>/social &lt;niche&gt; [platform]</code>\n\n"
+                "Platforms: <code>instagram</code>, <code>tiktok</code>, <code>twitter</code>, <code>youtube</code>, <code>linkedin</code>, or <code>all</code>\n"
+                "Example: <code>/social podcast tiktok</code> or <code>/social creative studio instagram</code>"
+            )
+            return
+
+        parts = raw.split()
+        if len(parts) > 1 and parts[-1].lower() in ["instagram", "tiktok", "twitter", "youtube", "linkedin", "all"]:
+            plat = parts[-1].lower()
+            niche = " ".join(parts[:-1]).strip()
+        else:
+            plat = "all"
+            niche = raw
+
+        from app.services.social_scraper import SocialScraperService
+        await tg.send_message(f"🔎 <i>Scanning {plat.title()} for '{niche}' collab accounts with direct emails... This takes ~15 seconds.</i>")
+        async with async_session_factory() as db:
+            scraper = SocialScraperService(db=db)
+            result = await scraper.discover_social_leads(niche=niche, platform_key=plat, limit=10, save_to_db=True)
+            leads = result.get("leads", [])
+
+        if not leads:
+            await tg.send_message(f"❌ No verified collab emails found for '{niche}' on {plat.title()}. Try another niche or platform.")
+        else:
+            await tg.notify_social_leads_discovered(platform=plat, niche=niche, count=len(leads), sample_leads=leads[:5])
 
     elif cmd.startswith("/find"):
         # Format: /find <niche> in <location> [limit] or /find <niche> <location>

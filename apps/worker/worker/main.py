@@ -22,6 +22,7 @@ from .tasks.webhook import process_resend_event
 from .tasks.inbound_email import process_inbound_reply
 from .tasks.analytics import process_analytics
 from .tasks.autopilot import auto_discover_leads, auto_drip_outreach, telegram_bot_listener_loop
+from .tasks.social_collab import auto_discover_social_leads, auto_drip_social_outreach
 
 
 logging.basicConfig(
@@ -176,11 +177,15 @@ class WorkerSettings:
         process_analytics,
         auto_discover_leads,
         auto_drip_outreach,
+        auto_discover_social_leads,
+        auto_drip_social_outreach,
     ]
     cron_jobs = [
         cron(process_analytics, minute={0, 15, 30, 45}),
         cron(auto_discover_leads, minute={12, 42}),
         cron(auto_drip_outreach, minute={5, 15, 25, 35, 45, 55}),
+        cron(auto_discover_social_leads, minute={22, 52}),
+        cron(auto_drip_social_outreach, minute={18, 38, 58}),
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
 
