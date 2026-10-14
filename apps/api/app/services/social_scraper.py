@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.lead import Lead
-from ..models.suppression import Suppression
+from ..models.suppression import SuppressionEntry
 from ..enums import ValidationStatus, CrmStatus
 
 logger = logging.getLogger("shaliach.social_scraper")
@@ -323,7 +323,7 @@ class SocialScraperService:
 
                 # 2. Check if email exists in suppressions
                 suppressed = await self.db.execute(
-                    select(Suppression.id).where(Suppression.email == email).limit(1)
+                    select(SuppressionEntry.id).where(SuppressionEntry.normalized_email == email).limit(1)
                 )
                 if suppressed.scalar_one_or_none():
                     continue
