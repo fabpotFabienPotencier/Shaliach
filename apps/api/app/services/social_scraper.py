@@ -167,21 +167,100 @@ class SocialScraperService:
             "leads": unique_leads[:limit],
         }
 
-    async def _search_platform(self, platform_key: str, niche: str, target_count: int) -> list[dict[str, Any]]:
-        """Queries public search engines for social media accounts with collab emails."""
+    async def _query_serper(self, platform_key: str, niche: str, target_count: int, api_key: str) -> list[dict[str, Any]]:
+        """Query Serper.dev Google Search API for instant, authoritative social collab profiles."""
         p_conf = SOCIAL_PLATFORMS[platform_key]
         site_filter = p_conf["site_query"]
-        
-        # Pick 2 rotating collab phrases and email triggers to keep query compact and precise
+        clean_niche = niche.replace('"', '').strip()
+        search_query = f"{site_filter} {clean_niche} collab gmail.com"
+
+        results: list[dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://google.serper.dev/search",
+                    headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                    json={"q": search_query, "num": min(target_count * 2, 20)},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data.get("organic", []):
+                        link = item.get("link", "")
+                        title = item.get("title", "")
+                        snippet = item.get("snippet", "")
+                        combined_text = f"{title} {snippet}"
+
+                        email_match = self._extract_clean_email(combined_text)
+                        if not email_match:
+                            continue
+
+                        # Extract handle from link or title
+                        handle = None
+                        if "@" in link:
+                            handle_match = re.search(r"@([a-zA-Z0-9_.-]+)", link)
+                            if handle_match:
+                                handle = f"@{handle_match.group(1).split('/')[0]}"
+                        elif p_conf["url_pattern"].search(link):
+                            m = p_conf["url_pattern"].search(link)
+                            raw_h = m.group(1).strip("/").strip()
+                            if raw_h.lower() not in p_conf["excluded_paths"]:
+                                handle = f"@{raw_h.lstrip('@')}"
+
+                        if not handle and "@" in title:
+                            h_match = re.search(r"@([a-zA-Z0-9_.-]+)", title)
+                            if h_match:
+                                handle = f"@{h_match.group(1)}"
+
+                        if not handle:
+                            handle = f"@{email_match.split('@')[0]}"
+
+                        display_name = title.split(" - ")[0].split(" | ")[0].split("•")[0].strip() or handle
+
+                        results.append({
+                            "handle": handle,
+                            "business_name": display_name,
+                            "first_name": handle.lstrip("@"),
+                            "email": email_match,
+                            "website": link,
+                            "platform": p_conf["name"],
+                            "platform_key": platform_key,
+                            "bio_snippet": snippet[:350],
+                            "niche": niche.title(),
+                        })
+        except Exception as e:
+            logger.warning(f"Serper Google Search query error: {e}")
+
+        return results
+
+    async def _search_platform(self, platform_key: str, niche: str, target_count: int) -> list[dict[str, Any]]:
+        """Queries Google Search API via Serper, falling back to open engines."""
+        p_conf = SOCIAL_PLATFORMS[platform_key]
+        clean_niche = niche.replace('"', '').strip()
+
+        # 1. Primary Engine: Serper Google Search (Fast, authoritative, bypasses captchas)
+        serper_key = None
+        try:
+            from ..config import get_settings
+            serper_key = get_settings().SERPER_API_KEY
+        except Exception:
+            pass
+        if not serper_key:
+            import os
+            serper_key = os.environ.get("SERPER_API_KEY")
+
+        if serper_key:
+            results = await self._query_serper(platform_key, clean_niche, target_count, serper_key)
+            if results:
+                logger.info(f"Serper Google Search found {len(results)} verified collab accounts on {p_conf['name']}.")
+                return results[:target_count]
+
+        # 2. Fallback: DuckDuckGo direct query
+        site_filter = p_conf["site_query"]
         collab_clause = '("open for collab" OR "business inquiries" OR "for collabs" OR "inquiries:")'
         email_clause = '("@gmail.com" OR "@outlook.com" OR "@yahoo.com")'
-        
-        # Clean niche query
-        clean_niche = niche.replace('"', '').strip()
         search_query = f'{site_filter} {clean_niche} {collab_clause} {email_clause}'
-        
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(search_query)}"
-        results: list[dict[str, Any]] = []
+        results = []
 
         try:
             async with httpx.AsyncClient(timeout=25.0) as client:
