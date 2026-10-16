@@ -6,6 +6,10 @@ export const API_URL =
 
 export function getAssetUrl(path?: string | null): string | null {
   if (!path) return null;
+  // If previously saved with frontend domain instead of api domain, redirect to API
+  if (path.includes('shaliach.fixhubtech.com/api/') && !path.includes('api.shaliach.fixhubtech.com')) {
+    return path.replace('shaliach.fixhubtech.com/api/', 'api.shaliach.fixhubtech.com/api/');
+  }
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }

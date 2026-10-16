@@ -54,3 +54,13 @@ async def send_reply(
     current_user: User = Depends(get_current_user),
 ):
     return await service.send_reply(conversation_id, dto, current_user.id)
+
+
+@router.delete("/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    service: InboxService = Depends(get_inbox_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Deletes a conversation and its messages."""
+    return await service.delete_conversation(conversation_id, current_user.id)

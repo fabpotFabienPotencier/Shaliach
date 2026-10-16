@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import {
   Button,
   Input,
@@ -46,6 +47,7 @@ import {
   Briefcase,
   DollarSign,
   HelpCircle,
+  Trash2,
 } from 'lucide-react';
 
 const getLeadDisplayName = (lead: any, fallbackEmail?: string) => {
@@ -86,6 +88,7 @@ const getInitials = (name: string) => {
 };
 
 export default function InboxPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,12 +99,33 @@ export default function InboxPage() {
   const [expandedQuotes, setExpandedQuotes] = useState<Record<string, boolean>>({});
   const [copiedEmail, setCopiedEmail] = useState(false);
 
+  // Senders list for identity selection
+  const { data: senders } = useQuery({
+    queryKey: ['settings-senders'],
+    queryFn: () => apiFetch('/api/settings/senders'),
+  });
+
+  const [selectedSenderId, setSelectedSenderId] = useState<string>('');
+  const [composeSenderId, setComposeSenderId] = useState<string>('');
+
+  useEffect(() => {
+    if (senders && senders.length > 0) {
+      const defaultSender = senders.find((s: any) => s.isDefault) || senders[0];
+      if (defaultSender) {
+        if (!selectedSenderId) setSelectedSenderId(defaultSender.id);
+        if (!composeSenderId) setComposeSenderId(defaultSender.id);
+      }
+    }
+  }, [senders]);
+
   // Compose Modal State
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [composeCrmStage, setComposeCrmStage] = useState('CONTACTED');
+
+  const mainSiteUrl = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://fixhubtech.com';
 
   const toggleQuote = (msgId: string) => {
     setExpandedQuotes((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
@@ -176,6 +200,20 @@ export default function InboxPage() {
     },
   });
 
+  const deleteConversationMutation = useMutation({
+    mutationFn: (convId: string) =>
+      apiFetch(`/api/inbox/${convId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      setSelectedConversationId(null);
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: (err: any) => {
+      alert(`Failed to delete conversation: ${err.message}`);
+    },
+  });
+
   const updateLeadStageMutation = useMutation({
     mutationFn: ({ leadId, status }: { leadId: string; status: string }) =>
       apiFetch(`/api/leads/${leadId}`, {
@@ -213,6 +251,7 @@ export default function InboxPage() {
       bodyText: replyBody,
       bodyHtml: `<p>${replyBody.replace(/\n/g, '<br/>')}</p>`,
       crmStatus: targetCrmStage,
+      senderProfileId: selectedSenderId || undefined,
     });
   };
 
@@ -224,6 +263,7 @@ export default function InboxPage() {
       subject: composeSubject.trim(),
       bodyText: composeBody.trim(),
       crmStatus: composeCrmStage,
+      senderProfileId: composeSenderId || undefined,
     });
   };
 
@@ -256,7 +296,7 @@ export default function InboxPage() {
 
       if (statusFilter === 'ALL') return true;
 
-      const latest = c.inboundMessages?.[c.inboundMessages.length - 1];
+      const latest = c.lastMessage || c.inboundMessages?.[c.inboundMessages.length - 1];
       const cls = latest?.classification || '';
       return cls === statusFilter;
     });
@@ -316,9 +356,9 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* Main Mailbox Container — Device-Friendly Responsive Layout */}
+      {/* Main Mailbox Container */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-[calc(100vh-140px)] min-h-[620px]">
-        {/* Left Column: Conversation Sidebar (Hidden on mobile if a thread is active) */}
+        {/* Left Column: Conversation Sidebar */}
         <Card
           className={`flex flex-col overflow-hidden shadow-sm border border-border/80 ${
             selectedConversationId ? 'hidden md:flex md:col-span-4 lg:col-span-4' : 'flex md:col-span-4 lg:col-span-4'
@@ -401,7 +441,7 @@ export default function InboxPage() {
               />
             ) : (
               filteredConversations.map((c: any) => {
-                const latest = c.inboundMessages?.[c.inboundMessages.length - 1];
+                const latest = c.lastMessage || c.inboundMessages?.[c.inboundMessages.length - 1];
                 const isSelected = selectedConversationId === c.id;
                 const displayName = getLeadDisplayName(c.lead);
                 const initials = getInitials(displayName);
@@ -432,6 +472,7 @@ export default function InboxPage() {
                       </div>
                       {latest?.textBody && (
                         <div className="text-[11px] text-muted-foreground truncate mt-0.5 font-sans">
+                          {latest.isOutgoing ? <span className="font-semibold text-foreground/75">You: </span> : null}
                           {latest.textBody}
                         </div>
                       )}
@@ -448,7 +489,7 @@ export default function InboxPage() {
           </div>
         </Card>
 
-        {/* Right Column: Thread & Reply Assistant (Visible on desktop, or on mobile when thread is selected) */}
+        {/* Right Column: Thread & Reply Assistant */}
         <Card
           className={`flex flex-col overflow-hidden shadow-sm border border-border/80 ${
             selectedConversationId ? 'flex md:col-span-8 lg:col-span-8' : 'hidden md:flex md:col-span-8 lg:col-span-8'
@@ -466,7 +507,7 @@ export default function InboxPage() {
             <LoadingState message="Loading thread messages..." />
           ) : (
             <div className="flex flex-col h-full">
-              {/* Thread Header with Mobile Back Button & Controls */}
+              {/* Thread Header with Controls */}
               <div className="p-3 sm:p-4 border-b bg-card flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
                   {/* Mobile Back Button */}
@@ -550,6 +591,22 @@ export default function InboxPage() {
                       <ShieldBan className="h-3.5 w-3.5" />
                     </Button>
                   )}
+
+                  {/* Delete Conversation Thread */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('Delete this conversation thread from inbox?')) {
+                        deleteConversationMutation.mutate(activeConversation.id);
+                      }
+                    }}
+                    disabled={deleteConversationMutation.isPending}
+                    className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                    title="Delete conversation thread"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
 
@@ -563,7 +620,7 @@ export default function InboxPage() {
                           <div className="flex items-center justify-between border-b border-primary-foreground/20 pb-1.5 font-medium">
                             <span className="font-semibold text-xs flex items-center">
                               <span className="w-2 h-2 rounded-full bg-emerald-400 mr-1.5" />
-                              Joshua Caleb (FixHubTech)
+                              {m.fromName || user?.name || 'You'}
                             </span>
                             <span className="text-[10px] opacity-80 font-mono">
                               {formatDate(m.sentAt || m.createdAt)}
@@ -696,7 +753,7 @@ export default function InboxPage() {
                       type="button"
                       onClick={() =>
                         applyQuickTemplate(
-                          "Thanks for reaching out! You can view our latest client case studies and website redesigns at https://fixhubtech.com. Would you like me to walk you through a specific example relevant to your industry?"
+                          `Thanks for reaching out! You can view our latest client case studies and website solutions at ${mainSiteUrl}. Would you like me to walk you through a specific example relevant to your industry?`
                         )
                       }
                       className="inline-flex items-center px-2 py-0.5 rounded border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors whitespace-nowrap"
@@ -708,7 +765,7 @@ export default function InboxPage() {
                       type="button"
                       onClick={() =>
                         applyQuickTemplate(
-                          "Thanks for asking! Our web development and speed optimization packages typically start at reasonable project-based rates with no long-term lock-in. Could you share what you're looking to achieve so I can send an exact quote?"
+                          "Thanks for asking! Our packages typically start at reasonable project-based rates with no long-term lock-in. Could you share what you're looking to achieve so I can send an exact quote?"
                         )
                       }
                       className="inline-flex items-center px-2 py-0.5 rounded border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors whitespace-nowrap"
@@ -718,6 +775,24 @@ export default function InboxPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Identity Selection in Reply if Multiple Profiles */}
+                {senders && senders.length > 1 && (
+                  <div className="flex items-center space-x-2 text-[11px] pt-1">
+                    <span className="text-muted-foreground font-medium">Send From:</span>
+                    <select
+                      value={selectedSenderId}
+                      onChange={(e) => setSelectedSenderId(e.target.value)}
+                      className="h-6 rounded border border-input bg-background px-1.5 text-[11px] text-foreground"
+                    >
+                      {senders.map((s: any) => (
+                        <option key={s.id} value={s.id}>
+                          {s.fromName} &lt;{s.fromEmail}&gt; {s.isDefault ? '(Default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Input
@@ -775,6 +850,24 @@ export default function InboxPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
+            {/* Sender Identity Dropdown */}
+            {senders && senders.length > 0 && (
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">From Identity</label>
+                <select
+                  value={composeSenderId}
+                  onChange={(e) => setComposeSenderId(e.target.value)}
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  {senders.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.fromName} &lt;{s.fromEmail}&gt; {s.isDefault ? '(Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="space-y-1">
               <label className="font-semibold text-foreground">Recipient Email *</label>
               <Input

@@ -7,11 +7,13 @@ from sqlalchemy import select, func, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..config import get_settings
 from ..models.conversation import Conversation, InboundMessage
 from ..models.lead import Lead
 from ..models.email import EmailMessage
 from ..models.suppression import SuppressionEntry
 from ..models.sender_profile import SenderProfile
+from ..models.user import User
 from ..schemas.inbox import SendReplySchema, ComposeMessageSchema
 from ..enums import EmailStatus, ValidationStatus, CrmStatus
 from ..errors import NotFoundError, ValidationError, ErrorCode
@@ -44,8 +46,43 @@ class InboxService:
         convs = result.scalars().all()
 
         items = []
+        lead_ids_without_inbound = [c.lead_id for c in convs if not c.inbound_messages]
+        out_messages_by_lead = {}
+        if lead_ids_without_inbound:
+            out_stmt = (
+                select(EmailMessage)
+                .where(EmailMessage.lead_id.in_(lead_ids_without_inbound))
+                .order_by(desc(EmailMessage.created_at))
+            )
+            out_res = (await self.db.execute(out_stmt)).scalars().all()
+            for em in out_res:
+                if em.lead_id not in out_messages_by_lead:
+                    out_messages_by_lead[em.lead_id] = em
+
         for c in convs:
             last_msg = c.inbound_messages[-1] if c.inbound_messages else None
+            out_msg = out_messages_by_lead.get(c.lead_id) if not last_msg else None
+
+            last_msg_data = None
+            if last_msg:
+                last_msg_data = {
+                    "id": last_msg.id,
+                    "subject": last_msg.subject,
+                    "textBody": last_msg.text_body,
+                    "receivedAt": last_msg.received_at.isoformat() if last_msg.received_at else None,
+                    "classification": last_msg.classification,
+                    "isOutgoing": False,
+                }
+            elif out_msg:
+                last_msg_data = {
+                    "id": out_msg.id,
+                    "subject": out_msg.subject,
+                    "textBody": out_msg.text_body,
+                    "receivedAt": (out_msg.sent_at or out_msg.created_at).isoformat() if (out_msg.sent_at or out_msg.created_at) else None,
+                    "classification": None,
+                    "isOutgoing": True,
+                }
+
             items.append({
                 "id": c.id,
                 "leadId": c.lead_id,
@@ -60,13 +97,7 @@ class InboxService:
                     "firstName": c.lead.first_name,
                     "crmStatus": c.lead.crm_status,
                 } if c.lead else None,
-                "lastMessage": {
-                    "id": last_msg.id,
-                    "subject": last_msg.subject,
-                    "textBody": last_msg.text_body,
-                    "receivedAt": last_msg.received_at.isoformat() if last_msg.received_at else None,
-                    "classification": last_msg.classification,
-                } if last_msg else None,
+                "lastMessage": last_msg_data,
             })
 
         return {"items": items, "totalCount": total_count}
@@ -174,13 +205,23 @@ class InboxService:
         if supp:
             raise ValidationError("Cannot send reply: prospect email is suppressed")
 
-        # Look up default SenderProfile
-        sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
-        sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+        # Look up SenderProfile (custom or default)
+        settings = get_settings()
+        sender_profile = None
+        if dto.senderProfileId:
+            sp_stmt = select(SenderProfile).where(SenderProfile.id == dto.senderProfileId)
+            sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+        if not sender_profile:
+            sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
+            sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
 
-        from_email = sender_profile.from_email if sender_profile else "outreach@fixhubtech.com"
-        from_name = sender_profile.from_name if sender_profile else "Joshua Caleb"
-        reply_to_email = sender_profile.reply_to_email if sender_profile else "outreach@fixhubtech.com"
+        user = None
+        if user_id:
+            user = (await self.db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+
+        from_email = sender_profile.from_email if (sender_profile and sender_profile.from_email) else settings.RESEND_FROM_EMAIL
+        from_name = sender_profile.from_name if (sender_profile and sender_profile.from_name) else (user.name if user and user.name else "Outreach Team")
+        reply_to_email = sender_profile.reply_to_email if (sender_profile and sender_profile.reply_to_email) else settings.RESEND_REPLY_TO
 
         # Create outgoing EmailMessage
         idempotency_key = secrets.token_hex(16)
@@ -271,13 +312,23 @@ class InboxService:
             conv.message_count = (conv.message_count or 0) + 1
             conv.last_message_at = datetime.now(timezone.utc)
 
-        # Look up default SenderProfile
-        sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
-        sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+        # Look up SenderProfile (custom or default)
+        settings = get_settings()
+        sender_profile = None
+        if dto.senderProfileId:
+            sp_stmt = select(SenderProfile).where(SenderProfile.id == dto.senderProfileId)
+            sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+        if not sender_profile:
+            sp_stmt = select(SenderProfile).where(SenderProfile.is_default == True)
+            sender_profile = (await self.db.execute(sp_stmt)).scalar_one_or_none()
 
-        from_email = sender_profile.from_email if sender_profile else "outreach@fixhubtech.com"
-        from_name = sender_profile.from_name if sender_profile else "Joshua Caleb"
-        reply_to_email = sender_profile.reply_to_email if sender_profile else "outreach@fixhubtech.com"
+        user = None
+        if user_id:
+            user = (await self.db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+
+        from_email = sender_profile.from_email if (sender_profile and sender_profile.from_email) else settings.RESEND_FROM_EMAIL
+        from_name = sender_profile.from_name if (sender_profile and sender_profile.from_name) else (user.name if user and user.name else "Outreach Team")
+        reply_to_email = sender_profile.reply_to_email if (sender_profile and sender_profile.reply_to_email) else settings.RESEND_REPLY_TO
 
         body_html = dto.bodyHtml or f"<p>{dto.bodyText.replace(chr(10), '<br/>')}</p>"
 
@@ -321,3 +372,20 @@ class InboxService:
         )
 
         return {"success": True, "conversationId": conv.id, "emailMessageId": email_message.id}
+
+    async def delete_conversation(self, conversation_id: str, user_id: str | None = None) -> dict:
+        stmt = select(Conversation).where(Conversation.id == conversation_id)
+        conv = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not conv:
+            raise NotFoundError("Conversation", conversation_id)
+
+        await self.db.delete(conv)
+        await self.db.commit()
+
+        await self.audit.log(
+            action="DELETE_CONVERSATION",
+            entity_type="Conversation",
+            entity_id=conversation_id,
+            user_id=user_id,
+        )
+        return {"success": True}

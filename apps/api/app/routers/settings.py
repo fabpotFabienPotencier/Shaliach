@@ -79,9 +79,12 @@ async def get_branding(
     """Public endpoint to fetch workspace branding (logo, app name, company)."""
     settings = await service.get_all_settings()
     logo_url = settings.get("app_logo_url", None)
-    if logo_url and logo_url.startswith("/"):
-        api_base = get_settings().API_URL.rstrip("/")
-        logo_url = f"{api_base}{logo_url}"
+    if logo_url:
+        if logo_url.startswith("/"):
+            api_base = get_settings().API_URL.rstrip("/")
+            logo_url = f"{api_base}{logo_url}"
+        elif "shaliach.fixhubtech.com/api/" in logo_url and "api.shaliach.fixhubtech.com" not in logo_url:
+            logo_url = logo_url.replace("shaliach.fixhubtech.com/api/", "api.shaliach.fixhubtech.com/api/")
 
     return {
         "appName": settings.get("app_name", "SHALIACH AI"),
