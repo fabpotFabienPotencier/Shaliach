@@ -29,6 +29,48 @@ class AuthService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> dict:
+        # 1. Verify Cloudflare Turnstile if secret key is configured
+        secret_key = None
+        try:
+            from ..config import get_settings
+            secret_key = getattr(get_settings(), "CLOUDFLARE_SECRET_KEY", None)
+        except Exception:
+            pass
+        if not secret_key:
+            import os
+            secret_key = os.environ.get("CLOUDFLARE_SECRET_KEY")
+
+        if secret_key and str(secret_key).strip():
+            if not dto.turnstileToken:
+                logger.warning(f"Login rejected: missing Cloudflare Turnstile token from IP: {ip_address}")
+                raise AuthenticationError(
+                    code="CLOUDFLARE_VERIFICATION_REQUIRED",
+                    message="Cloudflare security verification required",
+                )
+
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    cf_resp = await client.post(
+                        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                        data={
+                            "secret": str(secret_key).strip(),
+                            "response": dto.turnstileToken,
+                            "remoteip": ip_address or "",
+                        },
+                    )
+                    cf_data = cf_resp.json()
+                    if not cf_data.get("success"):
+                        logger.warning(f"Cloudflare Turnstile rejected: {cf_data}")
+                        raise AuthenticationError(
+                            code="CLOUDFLARE_VERIFICATION_FAILED",
+                            message="Cloudflare security verification failed. Please try again.",
+                        )
+            except AuthenticationError:
+                raise
+            except Exception as e:
+                logger.error(f"Error verifying Cloudflare Turnstile: {e}")
+
         email = str(dto.email).lower().strip()
         stmt = select(User).where(User.email == email)
         result = await self.db.execute(stmt)

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@shaliach/ui';
@@ -25,9 +26,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ── Bot Defense & Cloudflare Verification ──────────────────────
-  const [isHumanVerified, setIsHumanVerified] = useState(false);
+  // ── Real Cloudflare Turnstile Verification ────────────────────
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileWidgetId, setTurnstileWidgetId] = useState<string | null>(null);
   const [honeypot, setHoneypot] = useState('');
+
+  const siteKey =
+    process.env.NEXT_PUBLIC_CLOUDFLARE_SITE_KEY || '0x4AAAAAAFYqFaePAI06zdOR';
 
   // ── Brute Force Lockout Protection ─────────────────────────────
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -42,7 +47,36 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
-  // Load saved rememberMe preference or remembered email if any
+  // Explicitly render real Cloudflare Turnstile widget
+  const renderTurnstileWidget = useCallback(() => {
+    if (typeof window !== 'undefined' && (window as any).turnstile) {
+      const container = document.getElementById('cf-turnstile-container');
+      if (container && container.childNodes.length === 0) {
+        try {
+          const wid = (window as any).turnstile.render('#cf-turnstile-container', {
+            sitekey: siteKey,
+            callback: (token: string) => {
+              setTurnstileToken(token);
+              setError(null);
+            },
+            'expired-callback': () => {
+              setTurnstileToken(null);
+            },
+            'error-callback': (errCode: any) => {
+              console.warn('Turnstile challenge error:', errCode);
+              setTurnstileToken(null);
+            },
+            theme: 'auto',
+          });
+          setTurnstileWidgetId(wid);
+        } catch (e) {
+          console.error('Error rendering Cloudflare Turnstile:', e);
+        }
+      }
+    }
+  }, [siteKey]);
+
+  // Load remembered email and initialize Turnstile check
   useEffect(() => {
     try {
       const savedEmail = localStorage.getItem('shaliach_remembered_email');
@@ -54,12 +88,16 @@ export default function LoginPage() {
       // Ignore localStorage exceptions in private browsing
     }
 
-    // Auto-verify human after brief browser environment check (Cloudflare fallback simulation)
-    const timer = setTimeout(() => {
-      setIsHumanVerified(true);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
+    // Check if turnstile script is already available
+    const interval = setInterval(() => {
+      if ((window as any).turnstile) {
+        renderTurnstileWidget();
+        clearInterval(interval);
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [renderTurnstileWidget]);
 
   // Lockout countdown timer
   useEffect(() => {
@@ -89,16 +127,16 @@ export default function LoginPage() {
       return;
     }
 
-    // 3. Human verification check
-    if (!isHumanVerified) {
-      setError('Please complete Cloudflare security verification before signing in.');
+    // 3. Official Cloudflare Turnstile token check
+    if (!turnstileToken) {
+      setError('Please complete the Cloudflare security verification checkbox before signing in.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, turnstileToken);
 
       // Handle remember me
       try {
@@ -114,6 +152,18 @@ export default function LoginPage() {
       setFailedAttempts(0);
       router.push('/dashboard');
     } catch (err: any) {
+      // Reset Turnstile token on failure
+      if (typeof window !== 'undefined' && (window as any).turnstile && turnstileWidgetId) {
+        try {
+          (window as any).turnstile.reset(turnstileWidgetId);
+        } catch {
+          try {
+            (window as any).turnstile.reset('#cf-turnstile-container');
+          } catch {}
+        }
+      }
+      setTurnstileToken(null);
+
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
 
@@ -138,7 +188,6 @@ export default function LoginPage() {
     e.preventDefault();
     if (!forgotEmail) return;
     setIsSendingReset(true);
-    // Simulate secure reset token dispatch
     await new Promise((r) => setTimeout(r, 900));
     setIsSendingReset(false);
     setForgotSubmitted(true);
@@ -146,6 +195,13 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
+      {/* Official Cloudflare Turnstile SDK Script */}
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        strategy="afterInteractive"
+        onLoad={renderTurnstileWidget}
+      />
+
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
@@ -293,31 +349,25 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Cloudflare Turnstile Verification Badge */}
-              <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-2">
-                  <ShieldCheck
-                    className={`h-4 w-4 ${
-                      isHumanVerified ? 'text-emerald-500' : 'text-amber-500'
-                    }`}
-                  />
-                  <span className="font-medium text-slate-700 dark:text-slate-300 text-[11px]">
-                    {isHumanVerified
-                      ? 'Cloudflare Turnstile Verified'
-                      : 'Verifying browser environment...'}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1 text-[10px] text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="font-semibold uppercase tracking-wider">Turnstile</span>
-                </div>
+              {/* Real Cloudflare Turnstile Interactive Widget */}
+              <div className="my-2 flex flex-col items-center justify-center rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-2.5">
+                <div
+                  id="cf-turnstile-container"
+                  className="min-h-[65px] flex items-center justify-center"
+                />
+                {!turnstileToken && (
+                  <p className="text-[11px] text-muted-foreground mt-1 flex items-center">
+                    <ShieldCheck className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Complete Cloudflare challenge to proceed
+                  </p>
+                )}
               </div>
 
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full font-semibold shadow-md transition-all active:scale-[0.99]"
-                disabled={isSubmitting || lockoutSeconds > 0 || !isHumanVerified}
+                disabled={isSubmitting || lockoutSeconds > 0 || !turnstileToken}
               >
                 {lockoutSeconds > 0 ? (
                   <span className="flex items-center justify-center">
@@ -341,7 +391,7 @@ export default function LoginPage() {
             256-Bit TLS Encrypted
           </span>
           <span>•</span>
-          <span>Cloudflare Edge Protected</span>
+          <span>Cloudflare Turnstile Protected</span>
         </div>
 
         <p className="text-center text-xs text-muted-foreground">

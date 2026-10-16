@@ -34,11 +34,13 @@ class Settings(BaseSettings):
     RESEND_FROM_EMAIL: str = "outreach@fixhubtech.com"
     RESEND_REPLY_TO: str = "joshua@fixhubtech.com"
 
-    # ── Cloudflare R2 Storage ─────────────────────────────────
+    # ── Cloudflare R2 Storage & Turnstile ─────────────────────
     R2_ENDPOINT: str = ""
     R2_ACCESS_KEY_ID: str = ""
     R2_SECRET_ACCESS_KEY: str = ""
     R2_BUCKET: str = "shaliach-uploads"
+    CLOUDFLARE_SITE_KEY: str = "0x4AAAAAAFYqFaePAI06zdOR"
+    CLOUDFLARE_SECRET_KEY: str = ""
 
     # ── Sentry ────────────────────────────────────────────────
     SENTRY_DSN: str = ""
