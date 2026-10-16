@@ -49,3 +49,8 @@ coverage/
 *.tgz
 .turbo/
 .env.example
+response/
+response.json
+prompt.txt
+logo_shaliach.avif
+scratch_tail.jsonl
