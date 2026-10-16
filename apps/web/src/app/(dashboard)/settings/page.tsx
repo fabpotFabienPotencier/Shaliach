@@ -484,21 +484,18 @@ export default function SettingsPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-8 text-center text-muted-foreground space-y-2">
-                    <Mail className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                    <p className="font-semibold text-xs text-foreground">No sender profiles configured yet</p>
-                    <p className="text-[11px]">
-                      Add your domain email identity (configured in Resend) to begin dispatching campaigns.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowSenderModal(true)}
-                      className="mt-2 text-xs"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Add First Profile
-                    </Button>
+                  <div className="p-4 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-foreground flex items-center">
+                        Joshua Caleb &lt;joshua@mail.fixhubtech.com&gt;
+                        <Badge variant="success" className="ml-2 text-[10px]">
+                          Default
+                        </Badge>
+                      </div>
+                      <div className="text-muted-foreground text-[11px] mt-0.5">
+                        Reply-To: joshua@reply.fixhubtech.com · Daily Cap: 100 emails/day
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
