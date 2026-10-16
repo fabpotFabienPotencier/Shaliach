@@ -48,6 +48,7 @@ import {
   DollarSign,
   HelpCircle,
   Trash2,
+  Video,
 } from 'lucide-react';
 
 const getLeadDisplayName = (lead: any, fallbackEmail?: string) => {
@@ -741,13 +742,25 @@ export default function InboxPage() {
                       type="button"
                       onClick={() =>
                         applyQuickTemplate(
-                          "Thanks for getting back to me! I'd love to show you how we can help. Do you have 10-15 minutes this Thursday or Friday for a quick intro call?"
+                          "Great to connect! Here is the 60-second video walkthrough of the autonomous engine in action:\n\n🎥 Walkthrough Video:\nhttps://www.loom.com/share/c8efd0866bcc42ddb4ab7db3a3cb0a09\n\n📊 Live Dashboard Snapshots:\n• https://www.loom.com/i/584b4fbde4534cfda9391b558a553e01\n• https://www.loom.com/i/50c29b2db22b4c3fbfe2dcd86446c499\n\nOnce you take a look, we can chat through how to structure the partnership directly over WhatsApp or right here. What is the best WhatsApp number to reach you at?"
                         )
                       }
                       className="inline-flex items-center px-2 py-0.5 rounded border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors whitespace-nowrap"
                     >
-                      <Calendar className="h-3 w-3 mr-1 text-purple-600" />
-                      Book Call
+                      <Video className="h-3 w-3 mr-1 text-indigo-600" />
+                      Walkthrough &amp; Loom
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyQuickTemplate(
+                          "Thanks for getting back to me! I prefer chatting asynchronously rather than scheduling calls so we don't waste time. Drop me a message on WhatsApp or share your number and we can discuss the details directly."
+                        )
+                      }
+                      className="inline-flex items-center px-2 py-0.5 rounded border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors whitespace-nowrap"
+                    >
+                      <MessageSquare className="h-3 w-3 mr-1 text-emerald-600" />
+                      WhatsApp / Chat
                     </button>
                     <button
                       type="button"
@@ -770,7 +783,7 @@ export default function InboxPage() {
                       }
                       className="inline-flex items-center px-2 py-0.5 rounded border border-border bg-muted/30 hover:bg-muted text-foreground transition-colors whitespace-nowrap"
                     >
-                      <DollarSign className="h-3 w-3 mr-1 text-emerald-600" />
+                      <DollarSign className="h-3 w-3 mr-1 text-amber-600" />
                       Pricing
                     </button>
                   </div>
