@@ -1,4 +1,12 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+export function getAssetUrl(path?: string | null): string | null {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+    return path;
+  }
+  return `${API_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+}
 
 export class ApiError extends Error {
   statusCode: number;

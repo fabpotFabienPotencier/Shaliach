@@ -37,6 +37,13 @@ export default function DashboardLayout({
     enabled: !!user,
   });
 
+  // Dynamic Workspace Branding
+  const { data: branding } = useQuery({
+    queryKey: ['branding'],
+    queryFn: () => apiFetch('/api/settings/branding'),
+    staleTime: 60000,
+  });
+
   if (isLoading || !user) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -44,6 +51,14 @@ export default function DashboardLayout({
       </div>
     );
   }
+
+  const userInitials = (user.name || user.email || 'U')
+    .split(' ')
+    .filter(Boolean)
+    .map((part: string) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
@@ -55,6 +70,9 @@ export default function DashboardLayout({
           onLogout={logout}
           userName={user.name}
           userEmail={user.email}
+          logoUrl={branding?.logoUrl}
+          appName={branding?.appName}
+          companyName={branding?.companyName}
           queueStatus={
             queueHealth
               ? {
@@ -85,15 +103,23 @@ export default function DashboardLayout({
         {/* Mobile Drawer Header */}
         <div className="flex h-16 items-center justify-between border-b px-4">
           <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black tracking-wider">
-              S
-            </div>
-            <div>
-              <div className="text-sm font-bold tracking-tight text-foreground">
-                SHALIACH AI
+            {branding?.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={branding.appName || 'Logo'}
+                className="h-8 w-8 object-contain rounded-lg shrink-0 shadow-sm"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black tracking-wider">
+                {(branding?.appName || 'S').charAt(0).toUpperCase()}
               </div>
-              <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                FixHubTech
+            )}
+            <div>
+              <div className="text-sm font-bold tracking-tight text-foreground truncate max-w-[150px]">
+                {branding?.appName || 'SHALIACH AI'}
+              </div>
+              <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider truncate max-w-[150px]">
+                {branding?.companyName || 'Workspace'}
               </div>
             </div>
           </div>
@@ -214,10 +240,18 @@ export default function DashboardLayout({
 
             {/* Mobile Brand Name */}
             <div className="md:hidden flex items-center space-x-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-black text-xs">
-                S
-              </div>
-              <span className="text-sm font-bold tracking-tight">SHALIACH AI</span>
+              {branding?.logoUrl ? (
+                <img
+                  src={branding.logoUrl}
+                  alt={branding.appName || 'Logo'}
+                  className="h-7 w-7 object-contain rounded-md shrink-0 shadow-sm"
+                />
+              ) : (
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-black text-xs">
+                  {(branding?.appName || 'S').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="text-sm font-bold tracking-tight">{branding?.appName || 'SHALIACH AI'}</span>
             </div>
 
             {/* Search Input (tablet and desktop) */}
@@ -244,14 +278,14 @@ export default function DashboardLayout({
               </span>
             </div>
 
-            {/* Joshua Caleb Avatar Badge */}
+            {/* User Avatar Badge */}
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                JC
+                {userInitials}
               </div>
               <div className="hidden md:block text-left">
                 <div className="text-xs font-semibold leading-none">{user.name}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">FixHubTech</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{branding?.companyName || 'Workspace'}</div>
               </div>
             </div>
           </div>

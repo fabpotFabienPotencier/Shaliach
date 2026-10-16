@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Script from 'next/script';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { apiFetch, getAssetUrl } from '@/lib/api';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@shaliach/ui';
 import {
   Lock,
@@ -16,15 +17,41 @@ import {
   Clock,
   KeyRound,
   X,
+  ArrowLeft,
+  ExternalLink,
 } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('from') || searchParams.get('redirect') || '/dashboard';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Dynamic Workspace Branding ────────────────────────────────
+  const [branding, setBranding] = useState<{
+    appName: string;
+    companyName: string;
+    logoUrl: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    apiFetch('/api/settings/branding')
+      .then((data) => setBranding(data))
+      .catch(() => {
+        // Fallback defaults if API not yet ready
+        setBranding({
+          appName: 'SHALIACH AI',
+          companyName: 'FixHubTech',
+          logoUrl: null,
+        });
+      });
+  }, []);
 
   // ── Real Cloudflare Turnstile Verification ────────────────────
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -33,6 +60,11 @@ export default function LoginPage() {
 
   const siteKey =
     process.env.NEXT_PUBLIC_CLOUDFLARE_SITE_KEY || '0x4AAAAAAFYqFaePAI06zdOR';
+
+  const mainSiteUrl = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://fixhubtech.com';
+  const marketplaceUrl =
+    process.env.NEXT_PUBLIC_MARKETPLACE_URL ||
+    'https://whop.com/fixhubtech/shaliach-ai-self-hosted-b2b-lead-generation/';
 
   // ── Brute Force Lockout Protection ─────────────────────────────
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -45,7 +77,6 @@ export default function LoginPage() {
   const [isSendingReset, setIsSendingReset] = useState(false);
 
   const { login } = useAuth();
-  const router = useRouter();
 
   // Explicitly render real Cloudflare Turnstile widget
   const renderTurnstileWidget = useCallback(() => {
@@ -150,7 +181,7 @@ export default function LoginPage() {
       }
 
       setFailedAttempts(0);
-      router.push('/dashboard');
+      router.push(redirectTo);
     } catch (err: any) {
       // Reset Turnstile token on failure
       if (typeof window !== 'undefined' && (window as any).turnstile && turnstileWidgetId) {
@@ -193,6 +224,9 @@ export default function LoginPage() {
     setForgotSubmitted(true);
   };
 
+  const appDisplayName = branding?.appName || 'SHALIACH AI';
+  const companyDisplayName = branding?.companyName || 'Sales & Outreach Intelligence';
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
       {/* Official Cloudflare Turnstile SDK Script */}
@@ -202,17 +236,38 @@ export default function LoginPage() {
         onLoad={renderTurnstileWidget}
       />
 
+      {/* Top Navigation Link */}
+      <div className="w-full max-w-md mb-2 flex justify-between items-center text-xs">
+        <a
+          href={mainSiteUrl}
+          className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+          Back to Main Site
+        </a>
+      </div>
+
       <div className="w-full max-w-md space-y-6">
-        {/* Brand Header */}
+        {/* Dynamic Brand Header */}
         <div className="text-center space-y-2">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xl shadow-md transition-transform hover:scale-105">
-            S
-          </div>
+          {branding?.logoUrl ? (
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 shadow-md transition-transform hover:scale-105">
+              <img
+                src={getAssetUrl(branding.logoUrl) || branding.logoUrl}
+                alt={appDisplayName}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-2xl shadow-md transition-transform hover:scale-105">
+              {appDisplayName.charAt(0).toUpperCase()}
+            </div>
+          )}
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            SHALIACH AI
+            {appDisplayName}
           </h1>
           <p className="text-xs uppercase font-semibold text-muted-foreground tracking-widest">
-            FixHubTech Outreach &amp; Sales Intelligence
+            {companyDisplayName}
           </p>
         </div>
 
@@ -275,7 +330,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@fixhubtech.com"
+                  placeholder="you@company.com"
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
@@ -377,14 +432,14 @@ export default function LoginPage() {
                 ) : isSubmitting ? (
                   'Verifying credentials...'
                 ) : (
-                  'Sign In to Shaliach AI'
+                  `Sign In to ${appDisplayName}`
                 )}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Security & Encryption Trust Badges */}
+        {/* Security & Encryption Badges */}
         <div className="flex items-center justify-center space-x-3 text-[11px] text-muted-foreground/80">
           <span className="flex items-center">
             <ShieldCheck className="h-3 w-3 mr-1 text-emerald-500" />
@@ -394,9 +449,24 @@ export default function LoginPage() {
           <span>Cloudflare Turnstile Protected</span>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} FixHubTech Digital Solutions. All rights reserved.
-        </p>
+        {/* Footer & License Links */}
+        <div className="text-center text-xs text-muted-foreground space-y-1.5">
+          <p>
+            Need a self-hosted license?{' '}
+            <a
+              href={marketplaceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary hover:underline inline-flex items-center"
+            >
+              Get instant access on Whop
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </a>
+          </p>
+          <p>
+            &copy; {new Date().getFullYear()} {branding?.companyName || 'FixHubTech'}. All rights reserved.
+          </p>
+        </div>
       </div>
 
       {/* Forgot Password Modal Dialog */}
@@ -447,7 +517,7 @@ export default function LoginPage() {
                     type="email"
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="admin@fixhubtech.com"
+                    placeholder="you@company.com"
                     required
                     disabled={isSendingReset}
                   />
@@ -479,3 +549,16 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}

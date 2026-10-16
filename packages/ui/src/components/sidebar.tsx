@@ -47,6 +47,9 @@ export interface SidebarProps {
   onLogout: () => void;
   userEmail?: string;
   userName?: string;
+  logoUrl?: string | null;
+  appName?: string;
+  companyName?: string;
   queueStatus?: {
     isHealthy: boolean;
     activeCount: number;
@@ -59,8 +62,11 @@ export function Sidebar({
   currentPath,
   onNavigate,
   onLogout,
-  userName = 'Joshua Caleb',
-  userEmail = 'joshua@fixhubtech.com',
+  userName = 'Workspace User',
+  userEmail = '',
+  logoUrl,
+  appName = 'SHALIACH AI',
+  companyName = 'Workspace',
   queueStatus,
   className,
 }: SidebarProps) {
@@ -77,23 +83,41 @@ export function Sidebar({
       {/* Brand Header */}
       <div className="flex h-16 items-center justify-between border-b px-4">
         {!collapsed && (
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black tracking-wider">
-              S
-            </div>
-            <div>
-              <div className="text-sm font-bold tracking-tight text-foreground">
-                SHALIACH AI
+          <div className="flex items-center space-x-2 overflow-hidden">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={appName}
+                className="h-8 w-8 object-contain rounded-lg shrink-0 shadow-sm"
+              />
+            ) : (
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black tracking-wider shadow-sm">
+                S
               </div>
-              <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                FixHubTech
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-bold tracking-tight text-foreground truncate">
+                {appName}
+              </div>
+              <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider truncate">
+                {companyName}
               </div>
             </div>
           </div>
         )}
         {collapsed && (
-          <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black">
-            S
+          <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={appName}
+                className="h-8 w-8 object-contain rounded-lg shadow-sm"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black shadow-sm">
+                S
+              </div>
+            )}
           </div>
         )}
         <button
