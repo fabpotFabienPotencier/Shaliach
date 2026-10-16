@@ -1,4 +1,8 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname.includes('fixhubtech.com')
+    ? 'https://api.shaliach.fixhubtech.com'
+    : 'http://localhost:3001');
 
 export function getAssetUrl(path?: string | null): string | null {
   if (!path) return null;

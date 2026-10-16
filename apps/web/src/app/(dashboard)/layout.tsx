@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Sidebar, LoadingState, SIDEBAR_NAV_ITEMS, cn } from '@shaliach/ui';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getAssetUrl } from '@/lib/api';
 import { Search, Menu, X, LogOut, Server } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -60,6 +60,8 @@ export default function DashboardLayout({
     .slice(0, 2)
     .toUpperCase();
 
+  const resolvedLogoUrl = getAssetUrl(branding?.logoUrl);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
       {/* Desktop Sidebar (hidden on mobile, visible from md: 768px and up) */}
@@ -70,7 +72,7 @@ export default function DashboardLayout({
           onLogout={logout}
           userName={user.name}
           userEmail={user.email}
-          logoUrl={branding?.logoUrl}
+          logoUrl={resolvedLogoUrl}
           appName={branding?.appName}
           companyName={branding?.companyName}
           queueStatus={
@@ -103,10 +105,10 @@ export default function DashboardLayout({
         {/* Mobile Drawer Header */}
         <div className="flex h-16 items-center justify-between border-b px-4">
           <div className="flex items-center space-x-2">
-            {branding?.logoUrl ? (
+            {resolvedLogoUrl ? (
               <img
-                src={branding.logoUrl}
-                alt={branding.appName || 'Logo'}
+                src={resolvedLogoUrl}
+                alt={branding?.appName || 'Logo'}
                 className="h-8 w-8 object-contain rounded-lg shrink-0 shadow-sm"
               />
             ) : (
@@ -240,10 +242,10 @@ export default function DashboardLayout({
 
             {/* Mobile Brand Name */}
             <div className="md:hidden flex items-center space-x-2">
-              {branding?.logoUrl ? (
+              {resolvedLogoUrl ? (
                 <img
-                  src={branding.logoUrl}
-                  alt={branding.appName || 'Logo'}
+                  src={resolvedLogoUrl}
+                  alt={branding?.appName || 'Logo'}
                   className="h-7 w-7 object-contain rounded-md shrink-0 shadow-sm"
                 />
               ) : (

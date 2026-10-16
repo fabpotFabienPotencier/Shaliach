@@ -2,6 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, UploadFile, File, Response, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_settings
 from ..database import get_db
 from ..dependencies import get_current_user
 from ..models.user import User
@@ -77,10 +78,15 @@ async def get_branding(
 ):
     """Public endpoint to fetch workspace branding (logo, app name, company)."""
     settings = await service.get_all_settings()
+    logo_url = settings.get("app_logo_url", None)
+    if logo_url and logo_url.startswith("/"):
+        api_base = get_settings().API_URL.rstrip("/")
+        logo_url = f"{api_base}{logo_url}"
+
     return {
         "appName": settings.get("app_name", "SHALIACH AI"),
         "companyName": settings.get("company_name", "FixHubTech"),
-        "logoUrl": settings.get("app_logo_url", None),
+        "logoUrl": logo_url,
     }
 
 
@@ -121,7 +127,8 @@ async def upload_logo(
     content_type = file.content_type or f"image/{ext}"
     storage.upload_file(file_key, content, content_type)
 
-    logo_url = f"/api/settings/assets/{file_key}"
+    api_base = get_settings().API_URL.rstrip("/")
+    logo_url = f"{api_base}/api/settings/assets/{file_key}"
     await service.update_setting(UpdateSettingSchema(key="app_logo_url", value=logo_url), current_user.id)
     return {"success": True, "logoUrl": logo_url}
 
@@ -135,8 +142,8 @@ async def delete_logo(
     """Resets the workspace logo back to the default icon."""
     settings = await service.get_all_settings()
     current_logo = settings.get("app_logo_url")
-    if current_logo and current_logo.startswith("/api/settings/assets/"):
-        file_key = current_logo.replace("/api/settings/assets/", "")
+    if current_logo and "/api/settings/assets/" in current_logo:
+        file_key = current_logo.split("/api/settings/assets/")[-1]
         try:
             storage.delete_file(file_key)
         except Exception:

@@ -31,7 +31,9 @@ class SettingsService:
                 "fromEmail": p.from_email,
                 "fromName": p.from_name,
                 "replyToEmail": p.reply_to_email,
-                "dailyLimit": p.daily_limit,
+                "companyName": getattr(p, "company_name", ""),
+                "companyWebsite": getattr(p, "company_website", ""),
+                "dailyLimit": getattr(p, "daily_limit", 100),
                 "isDefault": p.is_default,
                 "createdAt": p.created_at.isoformat() if p.created_at else None,
             }
@@ -49,7 +51,9 @@ class SettingsService:
             from_email=str(dto.fromEmail),
             from_name=dto.fromName,
             reply_to_email=str(dto.replyToEmail),
-            daily_limit=dto.dailyLimit,
+            company_name=getattr(dto, "companyName", None) or "FixHubTech",
+            company_website=getattr(dto, "companyWebsite", None) or "https://fixhubtech.com",
+            postal_address=getattr(dto, "postalAddress", None) or "",
             is_default=dto.isDefault,
         )
         self.db.add(profile)
@@ -69,7 +73,8 @@ class SettingsService:
             "fromEmail": profile.from_email,
             "fromName": profile.from_name,
             "replyToEmail": profile.reply_to_email,
-            "dailyLimit": profile.daily_limit,
+            "companyName": getattr(profile, "company_name", ""),
+            "dailyLimit": getattr(profile, "daily_limit", getattr(dto, "dailyLimit", 100)),
             "isDefault": profile.is_default,
             "createdAt": profile.created_at.isoformat() if profile.created_at else None,
         }
@@ -91,7 +96,9 @@ class SettingsService:
             "fromEmail": "from_email",
             "fromName": "from_name",
             "replyToEmail": "reply_to_email",
-            "dailyLimit": "daily_limit",
+            "companyName": "company_name",
+            "companyWebsite": "company_website",
+            "postalAddress": "postal_address",
             "isDefault": "is_default",
         }
         for k, v in data.items():
@@ -115,7 +122,8 @@ class SettingsService:
             "fromEmail": p.from_email,
             "fromName": p.from_name,
             "replyToEmail": p.reply_to_email,
-            "dailyLimit": p.daily_limit,
+            "companyName": getattr(p, "company_name", ""),
+            "dailyLimit": getattr(p, "daily_limit", 100),
             "isDefault": p.is_default,
             "createdAt": p.created_at.isoformat() if p.created_at else None,
         }

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     NODE_ENV: str = "production"
     PORT: int = 3001
     APP_URL: str = "https://shaliach.fixhubtech.com"
+    API_URL: str = "https://api.shaliach.fixhubtech.com"
     SESSION_SECRET: str = "shaliach-cookie-secret-key-32chars"
 
     # ── Database ──────────────────────────────────────────────
