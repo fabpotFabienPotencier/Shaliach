@@ -14,7 +14,7 @@ import logging
 import re
 import secrets
 import httpx
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 from app.config import get_settings
 from app.database import async_session_factory
@@ -143,6 +143,7 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                     Lead.last_contacted_at >= fourteen_days_ago,
                     Lead.last_reply_at.is_(None),
                     EmailMessage.id.is_(None),
+                    or_(Lead.source.is_(None), ~Lead.source.like("social_collab_%")),
                 )
             )
             .order_by(Lead.last_contacted_at.asc())
@@ -235,6 +236,7 @@ async def auto_drip_outreach(ctx: dict) -> dict:
                     Lead.validation_status.in_([ValidationStatus.VALID.value, ValidationStatus.RISKY.value]),
                     Lead.crm_status == CrmStatus.IMPORTED.value,
                     Lead.last_contacted_at.is_(None),
+                    or_(Lead.source.is_(None), ~Lead.source.like("social_collab_%")),
                 )
             )
             .order_by(Lead.created_at.desc())
